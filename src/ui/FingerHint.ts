@@ -6,7 +6,6 @@ const FINGER_TEXTURE_KEY = 'finger';
 export class FingerHint {
   private readonly scene: Phaser.Scene;
   private readonly sprite: Phaser.GameObjects.Image;
-  private tween: Phaser.Tweens.TweenChain | Phaser.Tweens.Tween | null = null;
 
   constructor(scene: Phaser.Scene) {
     this.scene = scene;
@@ -26,7 +25,7 @@ export class FingerHint {
 
     // Fade in, pause, glide to target, pause, fade out, restart.
     const totalGlide = 900;
-    this.tween = this.scene.tweens.chain({
+    this.scene.tweens.chain({
       targets: this.sprite,
       loop: -1,
       tweens: [
@@ -40,15 +39,18 @@ export class FingerHint {
   }
 
   stop(): void {
-    if (this.tween) {
-      this.tween.remove();
-      this.tween = null;
+    // Phaser 3 `TweenChain.remove()` can throw if the chain's internal
+    // parent ref has been cleared (e.g. between chain iterations on a
+    // looping tween). `killTweensOf(target)` is the safer API — it kills
+    // anything affecting the sprite without dereferencing a stale handle.
+    if (this.sprite && this.sprite.active) {
+      this.scene.tweens.killTweensOf(this.sprite);
+      this.sprite.setVisible(false);
     }
-    this.sprite.setVisible(false);
   }
 
   destroy(): void {
     this.stop();
-    this.sprite.destroy();
+    if (this.sprite && this.sprite.active) this.sprite.destroy();
   }
 }

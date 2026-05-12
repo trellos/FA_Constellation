@@ -21,13 +21,14 @@ interface ScreenPoint {
 const NODE_RADIUS = 22;
 const TARGET_RADIUS = 26;
 const TARGET_RING_WIDTH = 5;
-// Snap if the pointer comes within this many game-pixels of the next target.
-// At a 1280-px-wide display that's ~120 CSS px — comfortably larger than a
-// fingertip and forgiving enough that small overshoots still register.
-const SNAP_DISTANCE = 180;
-// Even more forgiving on release: if the user lifts within this distance,
-// also snap. This covers slight overshoots and tap-to-target gestures.
-const RELEASE_SNAP_DISTANCE = 240;
+// Snap when the pointer is over the visible pink ring (target). The ring is
+// drawn at radius TARGET_RADIUS with a bright inner halo to ~1.6× and a
+// dimmer outer halo to ~3.2×. 80 game-px (≈ 3 × TARGET_RADIUS) means the
+// line completes only when the cursor is genuinely on the ring's glow.
+const SNAP_DISTANCE = 80;
+// Slightly more forgiving on release: catches small overshoots and a
+// tap-and-release directly on the target.
+const RELEASE_SNAP_DISTANCE = 110;
 const LINE_WIDTH = 6;
 const OUTLINE_FILL = 0.78; // fraction of the smaller screen dimension the outline is fitted to
 const REVEAL_ZOOM = 0.86;
@@ -367,6 +368,8 @@ export class ConstellationDisplay extends Phaser.Scene {
     if (!p) return;
     this.clearTarget();
 
+    // Two-layer halo: a dim outer glow at the snap-zone edge, and a brighter
+    // inner core. Sized so the visible halo IS the snap zone.
     const halo = this.add.graphics();
     halo.setPosition(p.x, p.y);
     halo.setDepth(180);

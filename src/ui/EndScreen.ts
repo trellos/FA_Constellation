@@ -23,7 +23,7 @@ export class EndScreen {
     this.container.setDepth(900);
     this.container.setAlpha(0);
 
-    this.title = scene.add.text(0, 0, this.name, {
+    this.title = scene.add.text(0, 0, this.name.toUpperCase(), {
       fontFamily: 'Inter, "Segoe UI", system-ui, sans-serif',
       fontSize: '88px',
       fontStyle: 'bold',
