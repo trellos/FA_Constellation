@@ -1,0 +1,24 @@
+node_modules/
+dist/
+
+# Playwright per-run artifacts
+test-results/
+playwright-report/
+.DS_Store
+Thumbs.db
+
+# Vite cache
+.vite/
+
+# Editor / OS
+.idea/
+.vscode/
+*.swp
+*.tmp
+
+# Claude per-machine settings (keep launch.json + settings.json in git so the
+# project is reproducible; ignore local overrides)
+.claude/settings.local.json
+
+# Asset-generation intermediates
+public/assets/_preview_*.png

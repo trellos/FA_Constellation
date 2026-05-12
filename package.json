@@ -1,0 +1,26 @@
+{
+  "name": "fa-constellation",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview --port 5173",
+    "gen-frames": "node tools/extract-frames.mjs",
+    "gen-outlines": "node tools/generate-outlines.mjs",
+    "gen-finger": "node tools/generate-finger.mjs",
+    "gen-assets": "npm run gen-finger && npm run gen-outlines",
+    "test:e2e": "playwright test",
+    "test:e2e:headed": "playwright test --headed"
+  },
+  "dependencies": {
+    "phaser": "^3.80.1"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.60.0",
+    "sharp": "^0.33.4",
+    "typescript": "^5.4.5",
+    "vite": "^5.2.11"
+  }
+}
