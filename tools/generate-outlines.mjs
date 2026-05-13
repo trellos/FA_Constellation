@@ -65,8 +65,8 @@ const CONSTELLATIONS = [
 // by the saturation cap.
 const MIN_RGB = 150; // each channel must exceed this for "near-white"
 const MIN_RGB_SOFT = 90; // alpha falloff range above MIN_RGB
-const SAT_MAX = 55;  // max(R,G,B) - min(R,G,B) <= this  ->  near-neutral
-const MARGIN = 24;   // crop margin
+const SAT_MAX = 55; // max(R,G,B) - min(R,G,B) <= this  ->  near-neutral
+const MARGIN = 24; // crop margin
 
 async function processOne(cfg) {
   if (!existsSync(cfg.source)) {
@@ -164,9 +164,7 @@ async function processOne(cfg) {
     .png({ compressionLevel: 9 })
     .toFile(outPath);
 
-  console.log(
-    `${cfg.name}: ${cw}x${ch} -> ${outPath} (bbox ${cx0},${cy0} ${cx1},${cy1})`
-  );
+  console.log(`${cfg.name}: ${cw}x${ch} -> ${outPath} (bbox ${cx0},${cy0} ${cx1},${cy1})`);
 }
 
 for (const cfg of CONSTELLATIONS) {

@@ -138,7 +138,7 @@ The trace order is the array order. Segments connect `points[i]` →
 
 The outline PNG is the creature's silhouette as a thick white stroke
 on a transparent background. Anti-aliasing is fine. The file is the
-*single source of truth* for where the constellation sits on screen:
+_single source of truth_ for where the constellation sits on screen:
 the JSON points are normalized to **the PNG's intrinsic dimensions**,
 and the layout code centers the PNG inside the canvas and scales it to
 `OUTLINE_FILL` (0.78) of the smaller canvas dim. The trace points are
@@ -177,7 +177,7 @@ specific game position, `tests/helpers.ts` reads the canvas's
 ```ts
 const r = canvas.getBoundingClientRect();
 const clientX = r.left + (gameX / 1920) * r.width;
-const clientY = r.top  + (gameY / 1080) * r.height;
+const clientY = r.top + (gameY / 1080) * r.height;
 ```
 
 ## Input pipeline

@@ -8,14 +8,14 @@ order — they're short and they will save you time.
 
 1. **[README.md](README.md)** — how to run, build, and add a new
    constellation.
-2. **[DESIGN.md](DESIGN.md)** — what the activity *is* from the
+2. **[DESIGN.md](DESIGN.md)** — what the activity _is_ from the
    player's point of view. Use this to check whether a proposed
    change matches the activity's intent.
 3. **[ARCHITECTURE.md](ARCHITECTURE.md)** — file layout, runtime
    control flow, state machine, data formats, asset pipeline,
    coordinate system, test approach.
 4. **[DECISIONS.md](DECISIONS.md)** — choices the project has already
-   made and *why*. Read this **before** changing input thresholds,
+   made and _why_. Read this **before** changing input thresholds,
    the build setup, the asset pipeline, scene structure, or any
    workaround that looks weird. The "why" is often a bug that already
    bit us once.
@@ -40,7 +40,7 @@ production code:
     or platform quirks).
   - Choose a magic number after real-world testing or measurement —
     record the rationale so it doesn't get tuned away.
-  - Decide *not* to do something obvious — the rejected alternative
+  - Decide _not_ to do something obvious — the rejected alternative
     is often more useful than the chosen one.
 
   Each entry should say what was picked, what was rejected, and why
@@ -56,7 +56,7 @@ If a change you're considering contradicts something in DECISIONS.md,
 either:
 
 1. Make a different change that doesn't contradict it, or
-2. Update DECISIONS.md *first* with the new reasoning, then make the
+2. Update DECISIONS.md _first_ with the new reasoning, then make the
    change. Don't quietly undo a documented decision.
 
 Same goes for ARCHITECTURE.md: if your change makes the documented

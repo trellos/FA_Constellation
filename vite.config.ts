@@ -22,6 +22,8 @@ export default defineConfig({
   ],
   build: {
     target: 'es2020',
-    sourcemap: true,
+    // Sourcemaps double the ship size; opt-in via env so production builds
+    // stay lean but devs can still debug a built bundle locally if needed.
+    sourcemap: process.env.VITE_SOURCEMAP === '1',
   },
 });

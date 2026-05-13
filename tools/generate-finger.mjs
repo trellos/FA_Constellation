@@ -31,9 +31,9 @@ const CROP = { x: 400, y: 600, w: 170, h: 200 };
 // Filter tuning. The finger is alpha-blended over deep-blue background, so
 // pixels comprising the sprite have a noticeably higher green channel than
 // the surrounding background.
-const G_MIN = 110;        // body+outline keep, background reject
-const G_SOFT = 30;        // alpha falloff
-const FINAL_W = 128;      // output texture size
+const G_MIN = 110; // body+outline keep, background reject
+const G_SOFT = 30; // alpha falloff
+const FINAL_W = 128; // output texture size
 const FINAL_H = 144;
 
 async function run() {
@@ -54,11 +54,16 @@ async function run() {
   for (let y = 0; y < h; y++) {
     for (let x = 0; x < w; x++) {
       const i = (y * w + x) * 4;
-      const r = raw[i], g = raw[i + 1], b = raw[i + 2];
+      const r = raw[i],
+        g = raw[i + 1],
+        b = raw[i + 2];
 
       // Background is high-B / low-G. Keep pixels with enough green.
       if (g < G_MIN) {
-        out[i] = 0; out[i + 1] = 0; out[i + 2] = 0; out[i + 3] = 0;
+        out[i] = 0;
+        out[i + 1] = 0;
+        out[i + 2] = 0;
+        out[i + 3] = 0;
         continue;
       }
 
@@ -72,7 +77,10 @@ async function run() {
   }
 
   // Auto-crop to alpha bbox + small margin, then resize to FINAL_W × FINAL_H.
-  let minX = w, minY = h, maxX = -1, maxY = -1;
+  let minX = w,
+    minY = h,
+    maxX = -1,
+    maxY = -1;
   for (let y = 0; y < h; y++) {
     for (let x = 0; x < w; x++) {
       if (out[(y * w + x) * 4 + 3] > 32) {

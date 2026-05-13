@@ -4,10 +4,17 @@ const STAR_TEXTURE_KEY = '__star_glow';
 const STAR_COUNT = 55;
 const STAR_TINT = 0xc8b8ff;
 
+interface StarPos {
+  /** Normalized [0, 1] position relative to the viewport. */
+  readonly u: number;
+  readonly v: number;
+  readonly star: Phaser.GameObjects.Image;
+}
+
 /** Sparse fuzzy lavender stars with slow random twinkle. */
 export class Starfield {
   private readonly scene: Phaser.Scene;
-  private readonly stars: Phaser.GameObjects.Image[] = [];
+  private readonly stars: StarPos[] = [];
   private readonly rng = new Phaser.Math.RandomDataGenerator(['constellation-stars']);
 
   constructor(scene: Phaser.Scene) {
@@ -26,18 +33,17 @@ export class Starfield {
     const h = this.scene.scale.height;
 
     for (let i = 0; i < STAR_COUNT; i++) {
-      const x = this.rng.between(0, w);
-      const y = this.rng.between(0, h);
+      const u = this.rng.realInRange(0, 1);
+      const v = this.rng.realInRange(0, 1);
       const baseScale = this.rng.realInRange(0.25, 0.75);
       const baseAlpha = this.rng.realInRange(0.3, 0.8);
 
-      const star = this.scene.add.image(x, y, STAR_TEXTURE_KEY);
+      const star = this.scene.add.image(u * w, v * h, STAR_TEXTURE_KEY);
       star.setTint(STAR_TINT);
       star.setBlendMode(Phaser.BlendModes.ADD);
       star.setScale(baseScale);
       star.setAlpha(baseAlpha);
       star.setDepth(-900);
-      (star as Phaser.GameObjects.Image & { baseAlpha: number }).baseAlpha = baseAlpha;
 
       this.scene.tweens.add({
         targets: star,
@@ -49,16 +55,21 @@ export class Starfield {
         delay: this.rng.between(0, 2000),
       });
 
-      this.stars.push(star);
+      this.stars.push({ u, v, star });
     }
   }
 
+  /**
+   * Re-pin each star to its original normalized position in the new viewport.
+   * Earlier this called `rng.between(0, w)` again — which advanced the same
+   * RNG that `populate()` had already consumed, producing fresh coords every
+   * resize so stars appeared to jump.
+   */
   private reposition = (): void => {
-    // Re-randomize positions in the new viewport (keeps overall density right).
     const w = this.scene.scale.width;
     const h = this.scene.scale.height;
-    for (const star of this.stars) {
-      star.setPosition(this.rng.between(0, w), this.rng.between(0, h));
+    for (const s of this.stars) {
+      s.star.setPosition(s.u * w, s.v * h);
     }
   };
 

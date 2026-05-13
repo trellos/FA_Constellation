@@ -9,7 +9,10 @@ const isHeadlessHidden = import.meta.env.DEV && document.hidden;
 if (isHeadlessHidden) {
   try {
     Object.defineProperty(document, 'hidden', { configurable: true, get: () => false });
-    Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => 'visible' });
+    Object.defineProperty(document, 'visibilityState', {
+      configurable: true,
+      get: () => 'visible',
+    });
   } catch {
     // ignore
   }
@@ -30,12 +33,19 @@ const game = new Phaser.Game({
   fps: { target: 60, forceSetTimeOut: isHeadlessHidden },
   // preserveDrawingBuffer lets the headless preview snapshot the WebGL canvas;
   // disabled in production to let the compositor reuse the back-buffer.
-  render: { antialias: true, pixelArt: false, roundPixels: false, preserveDrawingBuffer: isHeadlessHidden },
+  render: {
+    antialias: true,
+    pixelArt: false,
+    roundPixels: false,
+    preserveDrawingBuffer: isHeadlessHidden,
+  },
   input: { activePointers: 3 },
   scene: [BootScene],
 });
 
+// Dev-only side door: the Playwright suite in tests/helpers.ts introspects
+// `window.__game.scene.scenes` to drive and assert on scene state. Renaming,
+// deleting, or guarding this differently will break the e2e tests.
 if (import.meta.env.DEV) {
   (window as unknown as { __game: Phaser.Game }).__game = game;
 }
-

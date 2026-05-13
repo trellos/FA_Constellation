@@ -40,7 +40,7 @@ for (const { id, src } of SOURCES) {
       'fps=1',
       join(outDir, `v${id}_%03d.png`),
     ],
-    { stdio: 'inherit' }
+    { stdio: 'inherit' },
   );
 }
 

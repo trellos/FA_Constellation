@@ -4,10 +4,10 @@ export default defineConfig({
   testDir: './tests',
   fullyParallel: false,
   forbidOnly: !!process.env.CI,
-  // Headless Chromium occasionally drops a tap/move event before Phaser's
-  // input plugin processes it. One retry hides the rare timing flake without
-  // masking real regressions.
-  retries: 1,
+  // Tests should be deterministic. If a test flakes, fix the test or the
+  // bug — don't hide it behind a retry. In CI we allow one retry only to
+  // diagnose ordering or environmental issues with the trace artifact.
+  retries: process.env.CI ? 1 : 0,
   workers: 1,
   reporter: process.env.CI ? 'github' : 'list',
   timeout: 30_000,
@@ -22,6 +22,14 @@ export default defineConfig({
     {
       name: 'chromium',
       use: { ...devices['Desktop Chrome'] },
+    },
+    // Mobile-touch smoke profile. Run with:
+    //   npx playwright install webkit   (once)
+    //   npx playwright test --project=mobile-webkit
+    // Kept opt-in (not run by default in CI) so the suite stays fast.
+    {
+      name: 'mobile-webkit',
+      use: { ...devices['iPhone 13'] },
     },
   ],
   webServer: {

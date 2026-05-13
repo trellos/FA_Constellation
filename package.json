@@ -5,20 +5,33 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc --noEmit && vite build",
+    "typecheck": "tsc --noEmit",
+    "validate-assets": "node tools/validate-assets.mjs",
+    "lint": "eslint \"src/**/*.ts\" \"tests/**/*.ts\"",
+    "lint:fix": "eslint \"src/**/*.ts\" \"tests/**/*.ts\" --fix",
+    "format": "prettier --write \"**/*.{ts,tsx,mjs,md,json}\"",
+    "format:check": "prettier --check \"**/*.{ts,tsx,mjs,md,json}\"",
+    "prebuild": "npm run typecheck && npm run validate-assets",
+    "build": "vite build",
     "preview": "vite preview --port 5173",
     "gen-frames": "node tools/extract-frames.mjs",
     "gen-outlines": "node tools/generate-outlines.mjs",
     "gen-finger": "node tools/generate-finger.mjs",
     "gen-assets": "npm run gen-finger && npm run gen-outlines",
-    "test:e2e": "playwright test",
-    "test:e2e:headed": "playwright test --headed"
+    "test:e2e": "playwright test --project=chromium",
+    "test:e2e:headed": "playwright test --project=chromium --headed",
+    "test:e2e:mobile": "playwright test --project=mobile-webkit",
+    "test": "npm run typecheck && npm run lint && npm run validate-assets && npm run test:e2e"
   },
   "dependencies": {
     "phaser": "^3.80.1"
   },
   "devDependencies": {
     "@playwright/test": "^1.60.0",
+    "@typescript-eslint/eslint-plugin": "^7.18.0",
+    "@typescript-eslint/parser": "^7.18.0",
+    "eslint": "^8.57.1",
+    "prettier": "^3.8.3",
     "sharp": "^0.33.4",
     "typescript": "^5.4.5",
     "vite": "^5.2.11"

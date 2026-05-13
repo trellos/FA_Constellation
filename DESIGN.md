@@ -16,15 +16,15 @@ as something recognizable.
    starry background with the title `CONNECT STARS`, a small icon hint,
    and a `Play` button.
 
-2. **Tracing.** The modal fades. A glowing white circle (the *current
-   node*) appears at the first point of a randomly-picked constellation.
-   A pink ring (the *target*) fades in at the next point, gently pulsing.
+2. **Tracing.** The modal fades. A glowing white circle (the _current
+   node_) appears at the first point of a randomly-picked constellation.
+   A pink ring (the _target_) fades in at the next point, gently pulsing.
    After a brief pause, a pointing-finger sprite animates from the
    current node toward the target, showing what to do.
 
    The player drags from the current node toward the target. A white
    line follows their cursor. When the cursor reaches the target, the
-   line *snaps* — the line becomes solid between the two nodes, the
+   line _snaps_ — the line becomes solid between the two nodes, the
    target turns into a new white circle (which is now the current
    node), and a new pink ring appears at the next point. Repeat until
    every point is connected.
@@ -48,8 +48,8 @@ as something recognizable.
 - **Current node**: filled white circle with a soft glow.
 - **Target ring**: hollow magenta ring with a two-layer pink halo —
   bright inner core, dimmer outer falloff. The halo's outer extent is
-  sized to match the snap distance, so *what is visibly glowing is what
-  the line will snap to.*
+  sized to match the snap distance, so _what is visibly glowing is what
+  the line will snap to._
 - **Drag line**: clean white stroke from the current node to the
   cursor.
 - **Finger hint**: blue-and-white pointing hand cursor, extracted

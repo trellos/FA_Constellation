@@ -1,5 +1,13 @@
 import { test, expect } from '@playwright/test';
-import { drag, dragUntilAdvanced, gameToClient, readPoints, readState, tapPlay, waitForGameReady } from './helpers';
+import {
+  drag,
+  dragUntilAdvanced,
+  gameToClient,
+  readPoints,
+  readState,
+  tapPlay,
+  waitForGameReady,
+} from './helpers';
 
 test.describe('Constellation activity', () => {
   test.beforeEach(async ({ page }) => {
@@ -16,7 +24,9 @@ test.describe('Constellation activity', () => {
 
   test('Play button responds to a tap', async ({ page }) => {
     await tapPlay(page);
-    await expect.poll(async () => (await readState(page)).phase, { timeout: 3_000 }).toBe('Tracing');
+    await expect
+      .poll(async () => (await readState(page)).phase, { timeout: 3_000 })
+      .toBe('Tracing');
     const s = await readState(page);
     expect(s.currentIndex).toBe(0);
   });
@@ -32,23 +42,25 @@ test.describe('Constellation activity', () => {
   });
 
   test('completing every segment reaches Reveal then End', async ({ page }) => {
-    // Input fidelity is covered by the dedicated drag test above; here we
-    // verify the state-machine reaches End given completed segments. We drive
-    // segment progression by calling the scene's `advanceSegment` directly so
-    // the test isn't sensitive to losing 1-of-N pointer events over 7+ drags.
+    // 7+ sequential real drags with retries can run close to the default
+    // 30 s test budget — and beyond it under cold-cache headless Chromium.
+    test.setTimeout(60_000);
     await tapPlay(page);
     await expect.poll(async () => (await readState(page)).phase).toBe('Tracing');
+    const points = await readPoints(page);
+    expect(points.length).toBeGreaterThanOrEqual(2);
 
-    await page.evaluate(() => {
-      const w = window as unknown as { __game: { scene: { scenes: { scene: { key: string } }[]; getScene: (k: string) => { advanceSegment: () => void; phase: string } } } };
-      const entry = w.__game.scene.scenes.find((s) => s.scene.key.startsWith('display_'))!;
-      const display = w.__game.scene.getScene(entry.scene.key);
-      while (display.phase === 'Tracing') display.advanceSegment();
-    });
+    // Drive every segment with a real mouse drag through Phaser's full input
+    // pipeline. dragUntilAdvanced retries up to 3 times if a single drag
+    // didn't fire the snap, so this test isn't sensitive to losing one
+    // pointer event in headless Chromium.
+    for (let i = 0; i < points.length - 1; i++) {
+      await dragUntilAdvanced(page, points[i]!, points[i + 1]!, i + 1);
+    }
 
-    await expect
-      .poll(async () => (await readState(page)).phase, { timeout: 5_000 })
-      .toBe('End');
+    // After the final segment, Tracing -> Reveal (camera+outline tween) -> End
+    // (delayed 900 ms). Give the chain time to settle.
+    await expect.poll(async () => (await readState(page)).phase, { timeout: 8_000 }).toBe('End');
     const s = await readState(page);
     expect(s.outlineAlpha).toBeGreaterThan(0.5);
     expect(s.constellationName.length).toBeGreaterThan(0);

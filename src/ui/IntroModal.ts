@@ -49,7 +49,19 @@ export class IntroModal {
     panelBg.fillStyle(PANEL_FILL, 0.95);
     panelBg.fillRoundedRect(-W / 2, -H / 2, W, H, 28);
     // Dashed border: stroke a path with a Phaser line dash effect via repeated short segments.
-    drawDashedRoundedRect(panelBg, -W / 2 + 8, -H / 2 + 8, W - 16, H - 16, 22, 14, 10, PANEL_STROKE, 3, 1);
+    drawDashedRoundedRect(
+      panelBg,
+      -W / 2 + 8,
+      -H / 2 + 8,
+      W - 16,
+      H - 16,
+      22,
+      14,
+      10,
+      PANEL_STROKE,
+      3,
+      1,
+    );
     this.panel.add(panelBg);
 
     const title = this.scene.add.text(0, -H / 2 + 80, 'CONNECT\nSTARS', {
@@ -71,7 +83,7 @@ export class IntroModal {
     // Play button
     const btnY = H / 2 - 60;
     const btnContainer = makeButton(this.scene, 'Play', 220, 72, BTN_TOP, BTN_BOTTOM, () =>
-      this.dismiss()
+      this.dismiss(),
     );
     btnContainer.setPosition(0, btnY);
     this.panel.add(btnContainer);
@@ -110,7 +122,7 @@ function drawDashedRoundedRect(
   gapLen: number,
   color: number,
   lineWidth: number,
-  alpha: number
+  alpha: number,
 ): void {
   g.lineStyle(lineWidth, color, alpha);
   // Build a polyline approximation of the rounded rect, then walk it.
@@ -202,7 +214,13 @@ function drawIntroIcon(g: Phaser.GameObjects.Graphics, cx: number, cy: number): 
   g.strokeCircle(cx + 70, cy - 10, 11);
 }
 
-export function drawButton(g: Phaser.GameObjects.Graphics, w: number, h: number, top: number, bottom: number): void {
+export function drawButton(
+  g: Phaser.GameObjects.Graphics,
+  w: number,
+  h: number,
+  top: number,
+  bottom: number,
+): void {
   g.fillStyle(bottom, 1);
   g.fillRoundedRect(-w / 2, -h / 2, w, h, 18);
   // Brighter highlight on the upper half for cheap gradient impression.
@@ -213,11 +231,19 @@ export function drawButton(g: Phaser.GameObjects.Graphics, w: number, h: number,
 }
 
 /**
- * Build a reusable button. Fires `onTap` if a pointer-down is followed by a
- * pointer-up on the same button, OR if the pointer-up happens outside while
- * a press is in progress (forgiving of small finger jitter). A bare
- * pointer-down also fires `onTap` as a safety net for touch devices where
- * pointer-up sometimes misses the hit area.
+ * Build a reusable button. Fires `onTap` once when pointer-down is followed
+ * by pointer-up on the button, OR pointer-up-outside while a press is in
+ * progress (forgiving of small finger jitter on touch). Tracks a `fired`
+ * flag internally so a single button can't double-fire.
+ *
+ * Returns the Container plus a `dispose()` that must be called when the
+ * button is removed — it un-registers the scene-level pointerupoutside
+ * listener that catches the "lifted off the hit area" case. Letting the
+ * container die without dispose() leaks a closure per button until the
+ * scene shuts down.
+ *
+ * Convenience: pass an optional `attachTo` Container and dispose will be
+ * wired automatically to its DESTROY event.
  */
 export function makeButton(
   scene: Phaser.Scene,
@@ -226,9 +252,10 @@ export function makeButton(
   h: number,
   top: number,
   bottom: number,
-  onTap: () => void
-): Phaser.GameObjects.Container {
-  const c = scene.add.container(0, 0);
+  onTap: () => void,
+  attachTo?: Phaser.GameObjects.Container,
+): Phaser.GameObjects.Container & { dispose(): void } {
+  const c = scene.add.container(0, 0) as Phaser.GameObjects.Container & { dispose(): void };
   const gfx = scene.add.graphics();
   drawButton(gfx, w, h, top, bottom);
   const txt = scene.add.text(0, 0, label, {
@@ -240,14 +267,11 @@ export function makeButton(
   txt.setOrigin(0.5);
   c.add([gfx, txt]);
   c.setSize(w, h);
-  c.setInteractive(
-    new Phaser.Geom.Rectangle(-w / 2, -h / 2, w, h),
-    Phaser.Geom.Rectangle.Contains
-  );
+  c.setInteractive(new Phaser.Geom.Rectangle(-w / 2, -h / 2, w, h), Phaser.Geom.Rectangle.Contains);
 
   let armed = false;
   let fired = false;
-  const fire = () => {
+  const fire = (): void => {
     if (fired) return;
     fired = true;
     onTap();
@@ -266,12 +290,28 @@ export function makeButton(
     if (armed) fire();
     armed = false;
   });
-  // If pointer goes up *outside* the hit area while a press is in progress,
-  // still treat it as a tap — touch users often drag a few px on release.
-  scene.input.on(Phaser.Input.Events.POINTER_UP_OUTSIDE, () => {
+
+  // Scene-level fallback for pointer-up *outside* the button. We must own
+  // its lifetime — letting it accumulate per button is a leak.
+  const onUpOutside = (): void => {
     if (armed) fire();
     armed = false;
-  });
+  };
+  scene.input.on(Phaser.Input.Events.POINTER_UP_OUTSIDE, onUpOutside);
+
+  let disposed = false;
+  c.dispose = (): void => {
+    if (disposed) return;
+    disposed = true;
+    scene.input.off(Phaser.Input.Events.POINTER_UP_OUTSIDE, onUpOutside);
+    scene.tweens.killTweensOf(c);
+  };
+
+  c.once(Phaser.GameObjects.Events.DESTROY, () => c.dispose());
+  if (attachTo) {
+    attachTo.once(Phaser.GameObjects.Events.DESTROY, () => c.dispose());
+  }
+  scene.events.once(Phaser.Scenes.Events.SHUTDOWN, () => c.dispose());
 
   return c;
 }

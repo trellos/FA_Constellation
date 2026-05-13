@@ -29,7 +29,7 @@ it matters.
 
 `vite.config.ts` ships a `full-reload-always` plugin that intercepts
 HMR updates and tells the client to reload instead. Default Vite HMR
-swaps the module's *exports*, but Phaser scene classes are bound
+swaps the module's _exports_, but Phaser scene classes are bound
 through the prototype at instantiation — the running scene keeps its
 **old** method definitions after an edit. The result is silently
 stale code that doesn't match the source.
@@ -93,7 +93,7 @@ scene is shut down and its resources freed before the new one starts.
 ### Per-frame `update()` is a safety net, not the primary input path
 
 `pointerdown` / `pointermove` / `pointerup` are the primary handlers.
-`update()` *additionally* re-checks the snap condition every frame
+`update()` _additionally_ re-checks the snap condition every frame
 while dragging, redrawing the active line from the live
 `activePointer.x/y`. If a single `pointermove` event is dropped, the
 next frame still catches it.
@@ -119,15 +119,15 @@ const RELEASE_SNAP_DISTANCE = 110;
   the snap fired). 80 / 110 is the value the player actually expects.
 - 110 on release covers small overshoots from a lift and a direct
   tap-to-target gesture.
-- **Do not** make these match the *snap distance the player asks
-  for after a single miss* — a miss at 200 px doesn't mean snap
+- **Do not** make these match the _snap distance the player asks
+  for after a single miss_ — a miss at 200 px doesn't mean snap
   should fire at 200 px; it means the player needs to drag closer.
   The visible halo is the contract; honor it.
 
 ### Swept-segment snap (point-to-segment distance, not point-to-point)
 
-`onPointerMove` computes the distance from the target to the *segment
-between the previous and current pointer position*. A fast drag that
+`onPointerMove` computes the distance from the target to the _segment
+between the previous and current pointer position_. A fast drag that
 jumps straight over the snap zone between two frames still snaps,
 because the segment between the two endpoints passes within range.
 
@@ -159,7 +159,7 @@ made of perfect curves).
 
 ### Constellation coords are normalized to the PNG, not the canvas
 
-A `[u, v]` of `[0.5, 0.5]` means the *center of the outline image*,
+A `[u, v]` of `[0.5, 0.5]` means the _center of the outline image_,
 not the center of the canvas. The layout code centers and scales the
 PNG inside the canvas, then maps trace points relative to that.
 

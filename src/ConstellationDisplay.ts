@@ -1,10 +1,23 @@
 import Phaser from 'phaser';
-import type { ConstellationData, NormalizedPoint } from './types';
+import type { ConstellationData } from './types';
+import { computeOutlineLayout } from './OutlineLayout';
 import { Background } from './effects/Background';
 import { Starfield } from './effects/Starfield';
 import { IntroModal } from './ui/IntroModal';
 import { EndScreen } from './ui/EndScreen';
 import { FingerHint } from './ui/FingerHint';
+
+export interface ConstellationDisplayInitData {
+  data: ConstellationData;
+  textureKey: string;
+  /**
+   * Where to fetch the outline PNG from. The scene's `preload()` hands this
+   * to Phaser's loader; using the Phaser loader (vs. a hand-rolled `Image()`)
+   * gets us retry, progress, error events, and CORS-aware loading for free.
+   */
+  pngUrl: string;
+  onRestart: () => void;
+}
 
 enum Phase {
   Intro = 'Intro',
@@ -18,17 +31,21 @@ interface ScreenPoint {
   y: number;
 }
 
+/**
+ * Visual tuning. The snap distances are derived from TARGET_RADIUS so that
+ * changing the ring size automatically retunes the snap zone; the halo
+ * fill radii in `showTarget` use the same multipliers, so what's visibly
+ * glowing IS what the line will snap to.
+ */
 const NODE_RADIUS = 22;
 const TARGET_RADIUS = 26;
 const TARGET_RING_WIDTH = 5;
-// Snap when the pointer is over the visible pink ring (target). The ring is
-// drawn at radius TARGET_RADIUS with a bright inner halo to ~1.6× and a
-// dimmer outer halo to ~3.2×. 80 game-px (≈ 3 × TARGET_RADIUS) means the
-// line completes only when the cursor is genuinely on the ring's glow.
-const SNAP_DISTANCE = 80;
-// Slightly more forgiving on release: catches small overshoots and a
-// tap-and-release directly on the target.
-const RELEASE_SNAP_DISTANCE = 110;
+const HALO_INNER_R = TARGET_RADIUS * 1.6;
+const HALO_OUTER_R = TARGET_RADIUS * 2.4;
+// Mid-drag: snap when within the visible outer halo + a small margin.
+const SNAP_DISTANCE = TARGET_RADIUS * 3.08; // 80 game-px at TARGET_RADIUS=26
+// On release: a hair larger, to catch tap-and-release directly on the target.
+const RELEASE_SNAP_DISTANCE = TARGET_RADIUS * 4.23; // 110 game-px at TARGET_RADIUS=26
 const LINE_WIDTH = 6;
 const OUTLINE_FILL = 0.78; // fraction of the smaller screen dimension the outline is fitted to
 const REVEAL_ZOOM = 0.86;
@@ -46,7 +63,9 @@ export class ConstellationDisplay extends Phaser.Scene {
   // init-time data
   private constellationData!: ConstellationData;
   private textureKey!: string;
+  private pngUrl!: string;
   private onRestart!: () => void;
+  private loadFailed = false;
 
   // state
   private phase: Phase = Phase.Intro;
@@ -65,19 +84,43 @@ export class ConstellationDisplay extends Phaser.Scene {
   private fingerHint: FingerHint | null = null;
   private hintTimer: Phaser.Time.TimerEvent | null = null;
 
-  init(initData: ConstellationDisplay.InitData): void {
+  init(initData: ConstellationDisplayInitData): void {
     this.constellationData = initData.data;
     this.textureKey = initData.textureKey;
+    this.pngUrl = initData.pngUrl;
     this.onRestart = initData.onRestart;
     // reset per-scene-instance state (Phaser reuses scene instances on add())
     this.phase = Phase.Intro;
     this.points = [];
     this.currentIndex = 0;
     this.dragging = false;
+    this.loadFailed = false;
     this.nodes = [];
   }
 
+  preload(): void {
+    if (this.textures.exists(this.textureKey)) return;
+    this.load.image(this.textureKey, this.pngUrl);
+    this.load.once(Phaser.Loader.Events.FILE_LOAD_ERROR, (file: { src?: string }) => {
+      // Don't crash: log clearly and let create() bail out gracefully.
+      console.error(`[constellation] failed to load ${file?.src ?? this.pngUrl}`);
+      this.loadFailed = true;
+    });
+  }
+
   create(): void {
+    if (this.loadFailed) {
+      // Render a minimal error state instead of crashing in layout.
+      this.add
+        .text(this.scale.width / 2, this.scale.height / 2, 'Failed to load constellation', {
+          fontFamily: 'Inter, "Segoe UI", system-ui, sans-serif',
+          fontSize: '32px',
+          color: '#FFCCCC',
+        })
+        .setOrigin(0.5);
+      return;
+    }
+
     new Background(this);
     new Starfield(this);
 
@@ -146,32 +189,28 @@ export class ConstellationDisplay extends Phaser.Scene {
 
   private layoutOutlineAndPoints(): void {
     if (!this.outlineImage) return;
-    const w = this.scale.width;
-    const h = this.scale.height;
-    const tex = this.textures.get(this.textureKey).getSourceImage();
-    const texW = (tex as HTMLImageElement | HTMLCanvasElement).width;
-    const texH = (tex as HTMLImageElement | HTMLCanvasElement).height;
+    const dims = readTextureDims(this.textures.get(this.textureKey).getSourceImage());
+    if (!dims) {
+      console.warn(
+        `[constellation] texture ${this.textureKey} has no readable dimensions; skipping layout`,
+      );
+      return;
+    }
+    const layout = computeOutlineLayout({
+      viewportWidth: this.scale.width,
+      viewportHeight: this.scale.height,
+      textureWidth: dims.width,
+      textureHeight: dims.height,
+      data: this.constellationData,
+      outlineFill: OUTLINE_FILL,
+    });
 
-    const targetH = Math.min(h * OUTLINE_FILL, (w * OUTLINE_FILL * texH) / texW);
-    const scale = targetH / texH;
-    const drawW = texW * scale;
-    const drawH = texH * scale;
+    this.outlineImage.setPosition(this.scale.width / 2, this.scale.height / 2);
+    this.outlineImage.setScale(layout.rect.scale);
 
-    const cx = w / 2;
-    const cy = h / 2;
-    this.outlineImage.setPosition(cx, cy);
-    this.outlineImage.setScale(scale);
+    this.points = layout.points.map((p) => ({ x: p.x, y: p.y }));
 
-    // Recompute screen points from the normalized constellation coords.
-    const left = cx - drawW / 2;
-    const top = cy - drawH / 2;
-    this.points = this.constellationData.points.map((p: NormalizedPoint): ScreenPoint => ({
-      x: left + p[0] * drawW,
-      // PNG-normalized (0,0)=lower-left, screen Y grows down.
-      y: top + (1 - p[1]) * drawH,
-    }));
-
-    // If nodes already exist, reposition them.
+    // If nodes already exist (resize after Tracing started), reposition them.
     for (let i = 0; i < this.nodes.length; i++) {
       const p = this.points[i];
       if (p) this.nodes[i]!.setPosition(p.x, p.y);
@@ -313,7 +352,7 @@ export class ConstellationDisplay extends Phaser.Scene {
       const prev = this.lastPointer ?? { x: pointer.x, y: pointer.y };
       const releaseDist = Math.min(
         Phaser.Math.Distance.Between(pointer.x, pointer.y, target.x, target.y),
-        distancePointToSegment(target, prev, pointer)
+        distancePointToSegment(target, prev, pointer),
       );
       if (releaseDist <= RELEASE_SNAP_DISTANCE) {
         this.advanceSegment();
@@ -374,9 +413,9 @@ export class ConstellationDisplay extends Phaser.Scene {
     halo.setPosition(p.x, p.y);
     halo.setDepth(180);
     halo.fillStyle(0xff1fb4, 0.15);
-    halo.fillCircle(0, 0, TARGET_RADIUS * 2.4);
+    halo.fillCircle(0, 0, HALO_OUTER_R);
     halo.fillStyle(0xff1fb4, 0.25);
-    halo.fillCircle(0, 0, TARGET_RADIUS * 1.6);
+    halo.fillCircle(0, 0, HALO_INNER_R);
     this.targetHalo = halo;
 
     const ring = this.add.graphics();
@@ -458,6 +497,28 @@ export class ConstellationDisplay extends Phaser.Scene {
 }
 
 /**
+ * Phaser's `getSourceImage()` can return any of several concrete types
+ * depending on how the texture was loaded (HTMLImageElement, canvas,
+ * HTMLVideoElement, Frame, RenderTexture). Defensively extract a
+ * `{ width, height }` from whatever it returned; null means we shouldn't
+ * try to lay out against this texture.
+ */
+function readTextureDims(src: unknown): { width: number; height: number } | null {
+  if (src && typeof src === 'object') {
+    const obj = src as { width?: unknown; height?: unknown };
+    if (
+      typeof obj.width === 'number' &&
+      typeof obj.height === 'number' &&
+      obj.width > 0 &&
+      obj.height > 0
+    ) {
+      return { width: obj.width, height: obj.height };
+    }
+  }
+  return null;
+}
+
+/**
  * Shortest distance from point `p` to the line segment from `a` to `b`.
  * Used so a fast drag that "skips over" the target between two consecutive
  * pointermove events still triggers a snap.
@@ -470,13 +531,4 @@ function distancePointToSegment(p: ScreenPoint, a: ScreenPoint, b: ScreenPoint):
   let t = ((p.x - a.x) * dx + (p.y - a.y) * dy) / lenSq;
   t = Math.max(0, Math.min(1, t));
   return Math.hypot(p.x - (a.x + t * dx), p.y - (a.y + t * dy));
-}
-
-// eslint-disable-next-line @typescript-eslint/no-namespace
-export namespace ConstellationDisplay {
-  export interface InitData {
-    data: ConstellationData;
-    textureKey: string;
-    onRestart: () => void;
-  }
 }

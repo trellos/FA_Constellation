@@ -47,7 +47,7 @@ export async function waitForGameReady(page: Page): Promise<void> {
       return display.children.list.some((c: any) => findText(c, 'Play'));
     },
     null,
-    { timeout: 10_000 }
+    { timeout: 10_000 },
   );
 }
 
@@ -63,7 +63,8 @@ export async function readState(page: Page): Promise<{
   return page.evaluate(() => {
     const w = window as unknown as GameWindow;
     const g = w.__game;
-    const sceneKey = g.scene.scenes.find((s: { scene: { key: string } }) => s.scene.key !== 'boot')!.scene.key;
+    const sceneKey = g.scene.scenes.find((s: { scene: { key: string } }) => s.scene.key !== 'boot')!
+      .scene.key;
     const display = g.scene.getScene(sceneKey);
     return {
       sceneKey,
@@ -84,7 +85,8 @@ export async function readPoints(page: Page): Promise<ScreenPoint[]> {
   return page.evaluate(() => {
     const w = window as unknown as GameWindow;
     const g = w.__game;
-    const sceneKey = g.scene.scenes.find((s: { scene: { key: string } }) => s.scene.key !== 'boot')!.scene.key;
+    const sceneKey = g.scene.scenes.find((s: { scene: { key: string } }) => s.scene.key !== 'boot')!
+      .scene.key;
     const display = g.scene.getScene(sceneKey);
     return display.points.map((p: ScreenPoint) => ({ x: p.x, y: p.y }));
   });
@@ -92,17 +94,14 @@ export async function readPoints(page: Page): Promise<ScreenPoint[]> {
 
 /** Convert a game-pixel coordinate to a client-pixel coordinate on the canvas. */
 export async function gameToClient(page: Page, p: ScreenPoint): Promise<ScreenPoint> {
-  return page.evaluate(
-    ({ x: gx, y: gy }) => {
-      const canvas = document.querySelector('canvas')!;
-      const r = canvas.getBoundingClientRect();
-      // Phaser game coordinate space is 1920×1080.
-      const cx = r.left + (gx / 1920) * r.width;
-      const cy = r.top + (gy / 1080) * r.height;
-      return { x: cx, y: cy };
-    },
-    p
-  );
+  return page.evaluate(({ x: gx, y: gy }) => {
+    const canvas = document.querySelector('canvas')!;
+    const r = canvas.getBoundingClientRect();
+    // Phaser game coordinate space is 1920×1080.
+    const cx = r.left + (gx / 1920) * r.width;
+    const cy = r.top + (gy / 1080) * r.height;
+    return { x: cx, y: cy };
+  }, p);
 }
 
 /**
@@ -119,7 +118,14 @@ export async function tapPlay(page: Page): Promise<void> {
     // Give Phaser ~5 frames to process the click.
     await page.waitForTimeout(120);
     const phase = await page.evaluate(() => {
-      const w = window as unknown as { __game: { scene: { scenes: { scene: { key: string } }[]; getScene: (k: string) => { phase: string } } } };
+      const w = window as unknown as {
+        __game: {
+          scene: {
+            scenes: { scene: { key: string } }[];
+            getScene: (k: string) => { phase: string };
+          };
+        };
+      };
       const entry = w.__game.scene.scenes.find((s) => s.scene.key.startsWith('display_'));
       return entry ? w.__game.scene.getScene(entry.scene.key).phase : null;
     });
@@ -133,7 +139,12 @@ export async function tapPlay(page: Page): Promise<void> {
  * The down-then-move-then-up sequence is paced with brief sleeps so each
  * event lands on its own animation frame.
  */
-export async function drag(page: Page, from: ScreenPoint, to: ScreenPoint, steps = 12): Promise<void> {
+export async function drag(
+  page: Page,
+  from: ScreenPoint,
+  to: ScreenPoint,
+  steps = 12,
+): Promise<void> {
   const a = await gameToClient(page, from);
   const b = await gameToClient(page, to);
   await page.mouse.move(a.x, a.y);
@@ -155,7 +166,7 @@ export async function dragUntilAdvanced(
   page: Page,
   from: ScreenPoint,
   to: ScreenPoint,
-  expectedIndex: number
+  expectedIndex: number,
 ): Promise<void> {
   for (let attempt = 0; attempt < 3; attempt++) {
     await drag(page, from, to);
