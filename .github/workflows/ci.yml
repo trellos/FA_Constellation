@@ -70,3 +70,35 @@ jobs:
             playwright-report/
             test-results/
           retention-days: 7
+
+      # Upload the dist/ built above as the Pages artifact so the deploy job
+      # can reuse it without rebuilding. Only on push to main — PRs don't deploy.
+      - name: Upload Pages artifact
+        if: github.event_name == 'push'
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+
+  deploy:
+    needs: check
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
+
+      - name: Deployment summary
+        run: |
+          echo "## Deployment Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "✅ Built and deployed to GitHub Pages" >> $GITHUB_STEP_SUMMARY
+          echo "🔗 ${{ steps.deployment.outputs.page_url }}" >> $GITHUB_STEP_SUMMARY
