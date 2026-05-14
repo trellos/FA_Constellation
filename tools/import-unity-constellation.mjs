@@ -21,13 +21,7 @@
 // non-standard `--- !u!T &id` document markers that off-the-shelf YAML parsers
 // choke on, and we only need a handful of fields.
 
-import {
-  copyFileSync,
-  existsSync,
-  readFileSync,
-  readdirSync,
-  writeFileSync,
-} from 'node:fs';
+import { copyFileSync, existsSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import { basename, dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 

@@ -20,15 +20,15 @@ Discovery stops at the first missing index, so `01, 02, 04` will silently hide
     [0.165, 0.51],
     [0.207, 0.859],
     // …
-    [0.165, 0.51]
-  ]
+    [0.165, 0.51],
+  ],
 }
 ```
 
-| field    | type                       | required | notes |
-|----------|----------------------------|----------|-------|
-| `name`   | non-empty string           | yes      | Shown on the end screen, all-caps. |
-| `points` | array of `[u, v]` numbers  | yes      | At least 2 entries. Values must be finite. Values outside `[0, 1]` are allowed but warned. |
+| field    | type                      | required | notes                                                                                      |
+| -------- | ------------------------- | -------- | ------------------------------------------------------------------------------------------ |
+| `name`   | non-empty string          | yes      | Shown on the end screen, all-caps.                                                         |
+| `points` | array of `[u, v]` numbers | yes      | At least 2 entries. Values must be finite. Values outside `[0, 1]` are allowed but warned. |
 
 ### Coordinate space
 
