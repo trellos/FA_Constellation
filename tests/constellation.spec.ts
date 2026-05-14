@@ -66,7 +66,9 @@ test.describe('Constellation activity', () => {
     expect(s.constellationName.length).toBeGreaterThan(0);
   });
 
-  test('a tap directly on the next target snaps without dragging', async ({ page }) => {
+  test('a tap directly on the next target does NOT advance — dragging is required', async ({
+    page,
+  }) => {
     await tapPlay(page);
     await expect.poll(async () => (await readState(page)).phase).toBe('Tracing');
     const points = await readPoints(page);
@@ -74,7 +76,11 @@ test.describe('Constellation activity', () => {
     await page.mouse.move(target.x, target.y);
     await page.mouse.down();
     await page.mouse.up();
-    await expect.poll(async () => (await readState(page)).currentIndex, { timeout: 2_000 }).toBe(1);
+    // Give the scene a tick to process — the segment must NOT have advanced.
+    await page.waitForTimeout(400);
+    const s = await readState(page);
+    expect(s.currentIndex).toBe(0);
+    expect(s.phase).toBe('Tracing');
   });
 
   test('releasing mid-drag without reaching target keeps the current segment', async ({ page }) => {

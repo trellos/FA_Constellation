@@ -46,6 +46,9 @@ const HALO_OUTER_R = TARGET_RADIUS * 2.4;
 const SNAP_DISTANCE = TARGET_RADIUS * 3.08; // 80 game-px at TARGET_RADIUS=26
 // On release: a hair larger, to catch tap-and-release directly on the target.
 const RELEASE_SNAP_DISTANCE = TARGET_RADIUS * 4.23; // 110 game-px at TARGET_RADIUS=26
+// A drag must travel at least this far from pointer-down before any snap
+// counts. Prevents tap-on-target from advancing without dragging the line.
+const MIN_DRAG_DISTANCE = TARGET_RADIUS * 1.2;
 const LINE_WIDTH = 6;
 const OUTLINE_FILL = 0.78; // fraction of the smaller screen dimension the outline is fitted to
 const REVEAL_ZOOM = 0.86;
@@ -73,6 +76,8 @@ export class ConstellationDisplay extends Phaser.Scene {
   private currentIndex = 0; // segment we are currently drawing (from points[i] to points[i+1])
   private dragging = false;
   private lastPointer: ScreenPoint | null = null;
+  private dragStart: ScreenPoint | null = null;
+  private hasDragged = false;
 
   // visuals
   private nodes: Phaser.GameObjects.Container[] = [];
@@ -94,6 +99,8 @@ export class ConstellationDisplay extends Phaser.Scene {
     this.points = [];
     this.currentIndex = 0;
     this.dragging = false;
+    this.dragStart = null;
+    this.hasDragged = false;
     this.loadFailed = false;
     this.nodes = [];
   }
@@ -174,11 +181,11 @@ export class ConstellationDisplay extends Phaser.Scene {
     if (!target) return;
     const p = this.input.activePointer;
     if (!p) return;
+    this.updateDragProgress(p.x, p.y);
     const d = Phaser.Math.Distance.Between(p.x, p.y, target.x, target.y);
-    if (d <= SNAP_DISTANCE) {
+    if (this.hasDragged && d <= SNAP_DISTANCE) {
       this.advanceSegment();
-      this.dragging = false;
-      this.lastPointer = null;
+      this.endDrag();
       return;
     }
     this.drawActiveLine(p.x, p.y);
@@ -298,24 +305,34 @@ export class ConstellationDisplay extends Phaser.Scene {
 
   // ---------- input ----------
 
+  private updateDragProgress(x: number, y: number): void {
+    if (this.hasDragged || !this.dragStart) return;
+    if (
+      Phaser.Math.Distance.Between(x, y, this.dragStart.x, this.dragStart.y) >= MIN_DRAG_DISTANCE
+    ) {
+      this.hasDragged = true;
+    }
+  }
+
+  private endDrag(): void {
+    this.dragging = false;
+    this.lastPointer = null;
+    this.dragStart = null;
+    this.hasDragged = false;
+  }
+
   private onPointerDown(pointer: Phaser.Input.Pointer): void {
     if (this.phase !== Phase.Tracing) return;
-    const target = this.points[this.currentIndex + 1];
-    if (!target) return;
+    if (!this.points[this.currentIndex + 1]) return;
     // Any pointer-down during Tracing begins the drag. The line always
     // anchors at the current node, so the user can start dragging from
-    // anywhere on the screen — the activity remains forgiving.
+    // anywhere on the screen — the activity remains forgiving. Snap is
+    // gated on hasDragged so a plain tap on the target doesn't advance.
     this.dragging = true;
     this.lastPointer = { x: pointer.x, y: pointer.y };
+    this.dragStart = { x: pointer.x, y: pointer.y };
+    this.hasDragged = false;
     this.fingerHint?.stop();
-    // If the user tapped directly on the target (or inside its snap zone),
-    // snap immediately rather than requiring a subsequent move.
-    if (Phaser.Math.Distance.Between(pointer.x, pointer.y, target.x, target.y) <= SNAP_DISTANCE) {
-      this.advanceSegment();
-      this.dragging = false;
-      this.lastPointer = null;
-      return;
-    }
     this.drawActiveLine(pointer.x, pointer.y);
   }
 
@@ -331,11 +348,11 @@ export class ConstellationDisplay extends Phaser.Scene {
     const prev = this.lastPointer ?? { x: pointer.x, y: pointer.y };
     const sweptDist = distancePointToSegment(target, prev, pointer);
     this.lastPointer = { x: pointer.x, y: pointer.y };
+    this.updateDragProgress(pointer.x, pointer.y);
 
-    if (sweptDist <= SNAP_DISTANCE) {
+    if (this.hasDragged && sweptDist <= SNAP_DISTANCE) {
       this.advanceSegment();
-      this.dragging = false;
-      this.lastPointer = null;
+      this.endDrag();
       return;
     }
     this.drawActiveLine(pointer.x, pointer.y);
@@ -349,21 +366,20 @@ export class ConstellationDisplay extends Phaser.Scene {
     // proximity, so any reasonable attempt at reaching the target counts.
     const target = this.points[this.currentIndex + 1];
     if (this.dragging && target) {
+      this.updateDragProgress(pointer.x, pointer.y);
       const prev = this.lastPointer ?? { x: pointer.x, y: pointer.y };
       const releaseDist = Math.min(
         Phaser.Math.Distance.Between(pointer.x, pointer.y, target.x, target.y),
         distancePointToSegment(target, prev, pointer),
       );
-      if (releaseDist <= RELEASE_SNAP_DISTANCE) {
+      if (this.hasDragged && releaseDist <= RELEASE_SNAP_DISTANCE) {
         this.advanceSegment();
-        this.dragging = false;
-        this.lastPointer = null;
+        this.endDrag();
         return;
       }
     }
     if (!this.dragging) return;
-    this.dragging = false;
-    this.lastPointer = null;
+    this.endDrag();
     this.activeLine?.clear();
     this.scheduleHint();
   }

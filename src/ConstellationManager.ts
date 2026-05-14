@@ -65,6 +65,8 @@ export class ConstellationManager {
         'No constellation_NN.{json,png} pairs found in /assets. Run `npm run gen-assets`.',
       );
     }
+    // TEMP: restrict to the Bunny constellation only.
+    if (this.available.includes(4)) this.available = [4];
     await this.showRandom();
   }
 
