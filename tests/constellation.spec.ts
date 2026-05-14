@@ -100,3 +100,142 @@ test.describe('Constellation activity', () => {
     expect(s.phase).toBe('Tracing');
   });
 });
+
+test.describe('Debug picker (?debug=1)', () => {
+  test('shows a constellation picker on the title screen and switches on tap', async ({ page }) => {
+    await page.goto('/?debug=1');
+    await waitForGameReady(page);
+
+    // The picker renders a button for every available constellation. Each
+    // button is a Phaser Text node whose label is either the constellation
+    // name or "${name} ✓" for the currently-mounted one.
+    const before = await page.evaluate(() => {
+      const w = window as unknown as {
+        __game: {
+          scene: { scenes: Array<{ scene: { key: string }; children: { list: unknown[] } }> };
+        };
+      };
+      const display = w.__game.scene.scenes.find((s) => s.scene.key.startsWith('display_'))!;
+      function collectText(o: unknown, acc: string[]): void {
+        const node = o as { type?: string; text?: string; list?: unknown[] };
+        if (node.type === 'Text' && typeof node.text === 'string') acc.push(node.text);
+        if (node.list) for (const c of node.list) collectText(c, acc);
+      }
+      const labels: string[] = [];
+      for (const c of display.children.list) collectText(c, labels);
+      return labels;
+    });
+    // At least one debug label and one "currently selected" marker should be
+    // present — there are at least 4 constellations in this build.
+    expect(before.filter((t) => t.endsWith(' ✓')).length).toBe(1);
+    expect(before.includes('DEBUG: pick')).toBe(true);
+    await page.screenshot({ path: 'test-results/debug-picker-title.png' });
+    const currentLabel = before.find((t) => t.endsWith(' ✓'))!.replace(/ ✓$/, '');
+
+    // Pick a different constellation by clicking its button.
+    const otherName = await page.evaluate((current) => {
+      const w = window as unknown as {
+        __game: {
+          scene: {
+            scenes: Array<{
+              scene: { key: string };
+              children: { list: unknown[] };
+              input: { hitTestPointer: (...a: unknown[]) => unknown };
+            }>;
+          };
+        };
+      };
+      const display = w.__game.scene.scenes.find((s) => s.scene.key.startsWith('display_'))!;
+      function find(o: unknown, label: string): { x: number; y: number } | null {
+        const node = o as {
+          type?: string;
+          text?: string;
+          parentContainer?: { x: number; y: number; parentContainer?: { x: number; y: number } };
+          list?: unknown[];
+        };
+        if (node.type === 'Text' && node.text === label) {
+          // Walk up the container chain to compute world position.
+          let x = 0;
+          let y = 0;
+          let p: { x: number; y: number; parentContainer?: { x: number; y: number } } | undefined =
+            node.parentContainer;
+          while (p) {
+            x += p.x;
+            y += p.y;
+            p = p.parentContainer;
+          }
+          return { x, y };
+        }
+        if (node.list) {
+          for (const c of node.list) {
+            const r = find(c, label);
+            if (r) return r;
+          }
+        }
+        return null;
+      }
+      const labels = ['Volcano', 'Lavaling', 'Sleepy Stone', 'Bunny'].filter((n) => n !== current);
+      for (const label of labels) {
+        for (const c of display.children.list) {
+          const pos = find(c, label);
+          if (pos) return label;
+        }
+      }
+      return null;
+    }, currentLabel);
+
+    expect(otherName).not.toBeNull();
+
+    // Click the other constellation's button. We resolve its on-canvas position
+    // and convert from game-coords to client-coords.
+    const target = await page.evaluate((label) => {
+      const w = window as unknown as {
+        __game: {
+          scene: { scenes: Array<{ scene: { key: string }; children: { list: unknown[] } }> };
+        };
+      };
+      const display = w.__game.scene.scenes.find((s) => s.scene.key.startsWith('display_'))!;
+      function find(o: unknown, l: string): { x: number; y: number } | null {
+        const node = o as {
+          type?: string;
+          text?: string;
+          parentContainer?: { x: number; y: number; parentContainer?: { x: number; y: number } };
+          list?: unknown[];
+        };
+        if (node.type === 'Text' && node.text === l) {
+          let x = 0;
+          let y = 0;
+          let p: { x: number; y: number; parentContainer?: { x: number; y: number } } | undefined =
+            node.parentContainer;
+          while (p) {
+            x += p.x;
+            y += p.y;
+            p = p.parentContainer;
+          }
+          return { x, y };
+        }
+        if (node.list) {
+          for (const c of node.list) {
+            const r = find(c, l);
+            if (r) return r;
+          }
+        }
+        return null;
+      }
+      for (const c of display.children.list) {
+        const r = find(c, label!);
+        if (r) return r;
+      }
+      return null;
+    }, otherName);
+
+    expect(target).not.toBeNull();
+    const client = await gameToClient(page, target!);
+    await page.mouse.click(client.x, client.y);
+
+    // After picking, the mounted constellation's name should equal the picked label.
+    await expect
+      .poll(async () => (await readState(page)).constellationName, { timeout: 5_000 })
+      .toBe(otherName!);
+  });
+});

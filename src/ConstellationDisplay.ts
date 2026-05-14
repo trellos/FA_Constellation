@@ -7,6 +7,17 @@ import { IntroModal } from './ui/IntroModal';
 import { EndScreen } from './ui/EndScreen';
 import { FingerHint } from './ui/FingerHint';
 
+export interface DebugPickerData {
+  /** All discovered constellation ids (sorted). */
+  ids: number[];
+  /** id -> display name. May be partial; the picker falls back to the id. */
+  names: Record<number, string>;
+  /** The id currently mounted. */
+  current: number;
+  /** Caller switches to a different constellation. */
+  onPick: (id: number) => void;
+}
+
 export interface ConstellationDisplayInitData {
   data: ConstellationData;
   textureKey: string;
@@ -17,6 +28,11 @@ export interface ConstellationDisplayInitData {
    */
   pngUrl: string;
   onRestart: () => void;
+  /**
+   * When non-null, the IntroModal will show a constellation picker.
+   * Populated by ConstellationManager only when `?debug=1` is in the URL.
+   */
+  debug: DebugPickerData | null;
 }
 
 enum Phase {
@@ -68,6 +84,7 @@ export class ConstellationDisplay extends Phaser.Scene {
   private textureKey!: string;
   private pngUrl!: string;
   private onRestart!: () => void;
+  private debugData: DebugPickerData | null = null;
   private loadFailed = false;
 
   // state
@@ -94,6 +111,7 @@ export class ConstellationDisplay extends Phaser.Scene {
     this.textureKey = initData.textureKey;
     this.pngUrl = initData.pngUrl;
     this.onRestart = initData.onRestart;
+    this.debugData = initData.debug;
     // reset per-scene-instance state (Phaser reuses scene instances on add())
     this.phase = Phase.Intro;
     this.points = [];
@@ -145,7 +163,7 @@ export class ConstellationDisplay extends Phaser.Scene {
     this.outlineImage.setDepth(50);
     this.layoutOutlineAndPoints();
 
-    new IntroModal(this, () => this.startTracing());
+    new IntroModal(this, () => this.startTracing(), this.debugData);
 
     this.input.on(Phaser.Input.Events.POINTER_DOWN, this.onPointerDown, this);
     this.input.on(Phaser.Input.Events.POINTER_MOVE, this.onPointerMove, this);

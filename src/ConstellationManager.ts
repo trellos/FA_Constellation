@@ -18,12 +18,17 @@ const ASSETS_BASE = 'assets';
 export class ConstellationManager {
   private readonly game: Phaser.Game;
   private available: number[] = [];
+  private names: Map<number, string> = new Map();
+  private readonly debugMode: boolean;
   private currentSceneKey: string | null = null;
   private launchCount = 0;
   private restarting = false;
 
   constructor(game: Phaser.Game) {
     this.game = game;
+    this.debugMode =
+      typeof window !== 'undefined' &&
+      new URLSearchParams(window.location.search).get('debug') === '1';
   }
 
   /**
@@ -65,15 +70,26 @@ export class ConstellationManager {
         'No constellation_NN.{json,png} pairs found in /assets. Run `npm run gen-assets`.',
       );
     }
-    // TEMP: restrict to the Bunny constellation only.
-    if (this.available.includes(4)) this.available = [4];
+    if (this.debugMode) {
+      // Pre-fetch names so the debug picker can label each option.
+      await Promise.all(this.available.map((id) => this.cacheName(id)));
+    }
     await this.showRandom();
   }
 
   /** Pick a random constellation and (re)start the display scene with it. */
   async showRandom(): Promise<void> {
     const id = this.available[Math.floor(Math.random() * this.available.length)]!;
+    await this.show(id);
+  }
+
+  /** Load and mount the display scene for a specific constellation id. */
+  async show(id: number): Promise<void> {
+    if (!this.available.includes(id)) {
+      throw new Error(`constellation id ${id} is not in the discovered set`);
+    }
     const loaded = await this.load(id);
+    if (this.debugMode && !this.names.has(id)) this.names.set(id, loaded.data.name);
 
     // Tear down any previous instance.
     if (this.currentSceneKey) {
@@ -99,8 +115,35 @@ export class ConstellationManager {
           void this.showRandom();
         }, 0);
       },
+      debug: this.debugMode
+        ? {
+            ids: [...this.available],
+            names: Object.fromEntries(this.names),
+            current: id,
+            onPick: (chosenId: number) => {
+              if (this.restarting) return;
+              this.restarting = true;
+              window.setTimeout(() => {
+                this.restarting = false;
+                void this.show(chosenId);
+              }, 0);
+            },
+          }
+        : null,
     };
     this.game.scene.add(sceneKey, ConstellationDisplay, true, initData);
+  }
+
+  private async cacheName(id: number): Promise<void> {
+    if (this.names.has(id)) return;
+    try {
+      const r = await fetch(`${ASSETS_BASE}/constellation_${pad2(id)}.json`);
+      if (!r.ok) return;
+      const data = (await r.json()) as { name?: unknown };
+      if (typeof data?.name === 'string') this.names.set(id, data.name);
+    } catch {
+      // best-effort — the picker will fall back to the id if the name is missing.
+    }
   }
 
   /**

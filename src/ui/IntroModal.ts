@@ -1,23 +1,29 @@
 import Phaser from 'phaser';
+import type { DebugPickerData } from '../ConstellationDisplay';
 
 const PANEL_FILL = 0x1b1a4a;
 const PANEL_STROKE = 0x7e6fff;
 const TEXT_COLOR = '#FFFFFF';
 const BTN_TOP = 0x2a8ae0;
 const BTN_BOTTOM = 0x1a60b0;
+const DEBUG_BTN_TOP = 0x9c5be0;
+const DEBUG_BTN_BOTTOM = 0x5a2da0;
 const DIM_ALPHA = 0.55;
 
 /** "CONNECT STARS" intro modal — full-screen blocker with a Play button. */
 export class IntroModal {
   private readonly scene: Phaser.Scene;
   private readonly onPlay: () => void;
+  private readonly debug: DebugPickerData | null;
   private readonly container: Phaser.GameObjects.Container;
   private readonly dimmer: Phaser.GameObjects.Rectangle;
   private readonly panel: Phaser.GameObjects.Container;
+  private debugPanel: Phaser.GameObjects.Container | null = null;
 
-  constructor(scene: Phaser.Scene, onPlay: () => void) {
+  constructor(scene: Phaser.Scene, onPlay: () => void, debug: DebugPickerData | null = null) {
     this.scene = scene;
     this.onPlay = onPlay;
+    this.debug = debug;
 
     this.container = scene.add.container(0, 0);
     this.container.setDepth(1000);
@@ -32,6 +38,7 @@ export class IntroModal {
     this.container.add(this.panel);
 
     this.build();
+    if (this.debug) this.buildDebugPanel(this.debug);
     this.relayout();
 
     scene.scale.on(Phaser.Scale.Events.RESIZE, this.relayout, this);
@@ -94,7 +101,70 @@ export class IntroModal {
     const h = this.scene.scale.height;
     this.dimmer.setSize(w, h);
     this.panel.setPosition(w / 2, h / 2);
+    if (this.debugPanel) {
+      // Anchor the picker to the top-right corner with a small margin.
+      const PANEL_W = 280;
+      this.debugPanel.setPosition(w - PANEL_W / 2 - 20, 20);
+    }
   };
+
+  /**
+   * Render a vertical list of constellation buttons in the top-right.
+   * The current selection is rendered dimmed; tapping any other entry calls
+   * `debug.onPick(id)` which triggers a scene swap higher up.
+   */
+  private buildDebugPanel(debug: DebugPickerData): void {
+    const PANEL_W = 280;
+    const ROW_H = 44;
+    const ROW_GAP = 8;
+    const PAD = 16;
+    const rows = debug.ids.length;
+    const panelH = PAD * 2 + 32 + rows * ROW_H + (rows - 1) * ROW_GAP;
+
+    const c = this.scene.add.container(0, 0);
+    // Sit ABOVE the modal dimmer so it's tappable on the title screen.
+    this.container.add(c);
+    this.debugPanel = c;
+
+    const bg = this.scene.add.graphics();
+    bg.fillStyle(PANEL_FILL, 0.92);
+    bg.fillRoundedRect(-PANEL_W / 2, 0, PANEL_W, panelH, 16);
+    bg.lineStyle(2, PANEL_STROKE, 0.9);
+    bg.strokeRoundedRect(-PANEL_W / 2, 0, PANEL_W, panelH, 16);
+    c.add(bg);
+
+    const title = this.scene.add.text(0, PAD, 'DEBUG: pick', {
+      fontFamily: 'Inter, "Segoe UI", system-ui, sans-serif',
+      fontSize: '22px',
+      fontStyle: 'bold',
+      color: TEXT_COLOR,
+    });
+    title.setOrigin(0.5, 0);
+    c.add(title);
+
+    let y = PAD + 36;
+    for (const id of debug.ids) {
+      const label = debug.names[id] ?? `#${pad2(id)}`;
+      const isCurrent = id === debug.current;
+      const btn = makeButton(
+        this.scene,
+        isCurrent ? `${label} ✓` : label,
+        PANEL_W - PAD * 2,
+        ROW_H,
+        DEBUG_BTN_TOP,
+        DEBUG_BTN_BOTTOM,
+        () => {
+          if (isCurrent) return;
+          debug.onPick(id);
+        },
+        c,
+      );
+      btn.setPosition(0, y + ROW_H / 2);
+      if (isCurrent) btn.setAlpha(0.55);
+      c.add(btn);
+      y += ROW_H + ROW_GAP;
+    }
+  }
 
   private dismiss(): void {
     this.scene.tweens.add({
@@ -108,6 +178,10 @@ export class IntroModal {
       },
     });
   }
+}
+
+function pad2(n: number): string {
+  return n < 10 ? `0${n}` : `${n}`;
 }
 
 /** Draws a "dashed rounded rectangle" as a series of short stroked arcs/lines. */
