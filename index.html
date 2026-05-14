@@ -23,13 +23,42 @@
         padding: 0;
         height: 100%;
         width: 100%;
-        background: #0a0a3a;
+        /* Same gradient the in-canvas Background used to draw, now spanning
+           the whole viewport so it bleeds outside the portrait play area. */
+        background: linear-gradient(to bottom, #1a1ab8 0%, #2a0e58 100%);
         overflow: hidden;
         font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
         touch-action: none;
         overscroll-behavior: none;
       }
+      #stars {
+        position: fixed;
+        inset: 0;
+        pointer-events: none;
+        z-index: 0;
+      }
+      #stars span {
+        position: absolute;
+        border-radius: 50%;
+        background: rgba(200, 184, 255, 1);
+        box-shadow: 0 0 6px 1px rgba(200, 184, 255, 0.55);
+        will-change: opacity;
+        animation-name: twinkle;
+        animation-iteration-count: infinite;
+        animation-direction: alternate;
+        animation-timing-function: ease-in-out;
+      }
+      @keyframes twinkle {
+        from {
+          opacity: var(--a, 0.7);
+        }
+        to {
+          opacity: calc(var(--a, 0.7) * 0.35);
+        }
+      }
       #game {
+        position: relative;
+        z-index: 1;
         width: 100%;
         height: 100%;
       }
@@ -40,7 +69,38 @@
     </style>
   </head>
   <body>
+    <div id="stars"></div>
     <div id="game"></div>
+    <script>
+      // Deterministic full-viewport starfield. Runs before main.ts loads so
+      // the page never flashes a blank gradient. Mirrors the look of the old
+      // in-canvas Starfield (lavender tint, twinkle) but covers the whole
+      // window, so a landscape monitor sees stars bleed past the letterboxed
+      // canvas edges instead of hard side-bars.
+      (function () {
+        var c = document.getElementById('stars');
+        var N = 90;
+        var seed = 1337;
+        function rand() {
+          seed = (seed * 1664525 + 1013904223) >>> 0;
+          return seed / 4294967296;
+        }
+        for (var i = 0; i < N; i++) {
+          var s = document.createElement('span');
+          var size = rand() < 0.18 ? 3 : 2;
+          s.style.width = size + 'px';
+          s.style.height = size + 'px';
+          s.style.left = (rand() * 100).toFixed(2) + 'vw';
+          s.style.top = (rand() * 100).toFixed(2) + 'vh';
+          var alpha = 0.3 + rand() * 0.5;
+          s.style.setProperty('--a', alpha.toFixed(2));
+          s.style.opacity = alpha.toFixed(2);
+          s.style.animationDelay = (rand() * -3000).toFixed(0) + 'ms';
+          s.style.animationDuration = (1800 + rand() * 1800).toFixed(0) + 'ms';
+          c.appendChild(s);
+        }
+      })();
+    </script>
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>

@@ -1,8 +1,6 @@
 import Phaser from 'phaser';
 import type { ConstellationData } from './types';
 import { computeOutlineLayout } from './OutlineLayout';
-import { Background } from './effects/Background';
-import { Starfield } from './effects/Starfield';
 import { IntroModal } from './ui/IntroModal';
 import { EndScreen } from './ui/EndScreen';
 import { FingerHint } from './ui/FingerHint';
@@ -145,9 +143,6 @@ export class ConstellationDisplay extends Phaser.Scene {
         .setOrigin(0.5);
       return;
     }
-
-    new Background(this);
-    new Starfield(this);
 
     this.completedLines = this.add.graphics();
     this.completedLines.setDepth(150);

@@ -97,9 +97,14 @@ export async function gameToClient(page: Page, p: ScreenPoint): Promise<ScreenPo
   return page.evaluate(({ x: gx, y: gy }) => {
     const canvas = document.querySelector('canvas')!;
     const r = canvas.getBoundingClientRect();
-    // Phaser game coordinate space is 1920×1080.
-    const cx = r.left + (gx / 1920) * r.width;
-    const cy = r.top + (gy / 1080) * r.height;
+    // Game coordinate space is whatever Phaser was configured with — read it
+    // at runtime so this helper doesn't drift when the game flips between
+    // landscape and portrait dimensions.
+    const w = window as unknown as { __game: { scale: { width: number; height: number } } };
+    const gw = w.__game.scale.width;
+    const gh = w.__game.scale.height;
+    const cx = r.left + (gx / gw) * r.width;
+    const cy = r.top + (gy / gh) * r.height;
     return { x: cx, y: cy };
   }, p);
 }
@@ -112,7 +117,14 @@ export async function gameToClient(page: Page, p: ScreenPoint): Promise<ScreenPo
  * `waitForGameReady` returns.
  */
 export async function tapPlay(page: Page): Promise<void> {
-  const playClient = await gameToClient(page, { x: 960, y: 720 });
+  // The IntroModal panel is centered (560×480) with its Play button 60px above
+  // the panel bottom. Resolve the button's game-coord position from the live
+  // scene size so this works in both landscape and portrait layouts.
+  const playGame = await page.evaluate(() => {
+    const w = window as unknown as { __game: { scale: { width: number; height: number } } };
+    return { x: w.__game.scale.width / 2, y: w.__game.scale.height / 2 + 240 - 60 };
+  });
+  const playClient = await gameToClient(page, playGame);
   for (let attempt = 0; attempt < 5; attempt++) {
     if (attempt < 3) {
       // Real OS-level click — reliable in headed and most headless envs.

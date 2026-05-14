@@ -19,8 +19,14 @@ test('full constellation playthrough: start, connect every star, end screen', as
   await page.goto('/');
   await waitForGameReady(page);
 
-  // 1. Start button responds to a SINGLE click (no retries).
-  const playClient = await gameToClient(page, { x: 960, y: 720 });
+  // 1. Start button responds to a SINGLE click (no retries). Resolve the
+  // Play button's game coords from the live scene size so this works in both
+  // landscape and portrait layouts.
+  const playGame = await page.evaluate(() => {
+    const w = window as unknown as { __game: { scale: { width: number; height: number } } };
+    return { x: w.__game.scale.width / 2, y: w.__game.scale.height / 2 + 240 - 60 };
+  });
+  const playClient = await gameToClient(page, playGame);
   await page.mouse.click(playClient.x, playClient.y, { delay: 60 });
   await expect.poll(async () => (await readState(page)).phase, { timeout: 3_000 }).toBe('Tracing');
   expect((await readState(page)).currentIndex).toBe(0);

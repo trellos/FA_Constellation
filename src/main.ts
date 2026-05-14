@@ -28,9 +28,13 @@ if (isHeadlessHidden) {
 const game = new Phaser.Game({
   type: Phaser.AUTO,
   parent: 'game',
-  width: 1920,
-  height: 1080,
-  backgroundColor: '#0a0a3a',
+  // Portrait 9:16 play area. The gradient + starfield are painted by
+  // index.html across the whole viewport, so the canvas sits transparently
+  // on top — on a landscape monitor the starfield bleeds beyond the
+  // letterboxed canvas instead of leaving hard side-bars.
+  width: 1080,
+  height: 1920,
+  transparent: true,
   scale: {
     mode: Phaser.Scale.FIT,
     autoCenter: Phaser.Scale.CENTER_BOTH,
