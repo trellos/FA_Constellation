@@ -114,9 +114,23 @@ export async function gameToClient(page: Page, p: ScreenPoint): Promise<ScreenPo
 export async function tapPlay(page: Page): Promise<void> {
   const playClient = await gameToClient(page, { x: 960, y: 720 });
   for (let attempt = 0; attempt < 5; attempt++) {
-    await page.mouse.click(playClient.x, playClient.y, { delay: 60 });
-    // Give Phaser ~5 frames to process the click.
-    await page.waitForTimeout(120);
+    if (attempt < 3) {
+      // Real OS-level click — reliable in headed and most headless envs.
+      await page.mouse.click(playClient.x, playClient.y, { delay: 60 });
+    } else {
+      // Fallback: dispatch PointerEvents directly on the canvas so Phaser's
+      // input plugin receives them even when OS-level mouse routing is
+      // unreliable (headless Linux CI runners).
+      await page.evaluate(({ cx, cy }: { cx: number; cy: number }) => {
+        const canvas = document.querySelector('canvas');
+        if (!canvas) return;
+        const opts = { bubbles: true, cancelable: true, clientX: cx, clientY: cy, pointerId: 1 };
+        canvas.dispatchEvent(new PointerEvent('pointerdown', opts));
+        canvas.dispatchEvent(new PointerEvent('pointerup', opts));
+      }, { cx: playClient.x, cy: playClient.y });
+    }
+    // Give Phaser ~10 frames to process the input and advance phase.
+    await page.waitForTimeout(200);
     const phase = await page.evaluate(() => {
       const w = window as unknown as {
         __game: {

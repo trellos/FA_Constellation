@@ -1,7 +1,10 @@
 import { defineConfig } from 'vite';
 
-export default defineConfig({
-  base: '/FA_Constellation/',
+export default defineConfig(({ command }) => ({
+  // In dev the server always serves from '/', so dynamic imports in e2e tests
+  // (import('/src/ConstellationManager.ts')) and Vite's SPA fallback work
+  // as expected. The sub-path is only needed for the deployed Pages artifact.
+  base: command === 'build' ? '/FA_Constellation/' : '/',
   server: {
     host: true,
     port: 5173,
@@ -26,4 +29,4 @@ export default defineConfig({
     // stay lean but devs can still debug a built bundle locally if needed.
     sourcemap: process.env.VITE_SOURCEMAP === '1',
   },
-});
+}));

@@ -6,6 +6,13 @@ import { BootScene } from './BootScene';
 // Detect that condition and apply workarounds; in a real browser the page is
 // already visible at boot, so we leave Phaser's defaults alone.
 const isHeadlessHidden = import.meta.env.DEV && document.hidden;
+
+// Playwright sets navigator.webdriver=true. In automated (CI) headless Chromium,
+// requestAnimationFrame can be deprioritized even when document.hidden is false,
+// causing the game loop to miss input events between pointerdown and pointerup.
+// Force setTimeout-based ticking for all Playwright-driven sessions so the loop
+// ticks reliably regardless of rAF scheduling policy.
+const isAutomated = import.meta.env.DEV && !!navigator.webdriver;
 if (isHeadlessHidden) {
   try {
     Object.defineProperty(document, 'hidden', { configurable: true, get: () => false });
@@ -30,14 +37,14 @@ const game = new Phaser.Game({
   },
   // forceSetTimeOut keeps the loop ticking in headless preview where rAF is
   // throttled. Real browsers use rAF for smooth vsync-aligned rendering.
-  fps: { target: 60, forceSetTimeOut: isHeadlessHidden },
+  fps: { target: 60, forceSetTimeOut: isHeadlessHidden || isAutomated },
   // preserveDrawingBuffer lets the headless preview snapshot the WebGL canvas;
   // disabled in production to let the compositor reuse the back-buffer.
   render: {
     antialias: true,
     pixelArt: false,
     roundPixels: false,
-    preserveDrawingBuffer: isHeadlessHidden,
+    preserveDrawingBuffer: isHeadlessHidden || isAutomated,
   },
   input: { activePointers: 3 },
   scene: [BootScene],

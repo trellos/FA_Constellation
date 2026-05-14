@@ -43,5 +43,5 @@ test('playthrough with per-segment screenshots', async ({ page }) => {
   await page.waitForTimeout(600);
   await page.screenshot({ path: path.join(outDir, `99-end-screen.png`) });
 
-  console.log(`Saved playthrough screenshots for "${name}" to ${outDir}`);
+  process.stdout.write(`Saved playthrough screenshots for "${name}" to ${outDir}\n`);
 });
