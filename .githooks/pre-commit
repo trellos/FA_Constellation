@@ -1,0 +1,23 @@
+#!/usr/bin/env sh
+# Runs the same Prettier check CI runs, so a missed `npm run format` can't
+# slip past locally. Fast (<2s on this repo); typecheck/lint are intentionally
+# NOT included here to keep `git commit` responsive — let CI catch those.
+#
+# Bypass for emergencies: `git commit --no-verify`.
+set -e
+
+# Only run if package.json + node_modules are present; otherwise (fresh
+# checkout, bisect of an old SHA) just let the commit through.
+if [ ! -f package.json ] || [ ! -d node_modules ]; then
+  exit 0
+fi
+
+# Pick up only formatted-file types (matches the format:check glob).
+STAGED=$(git diff --cached --name-only --diff-filter=ACMR | grep -E '\.(ts|tsx|mjs|md|json)$' || true)
+if [ -z "$STAGED" ]; then
+  exit 0
+fi
+
+echo "pre-commit: prettier --check on $(echo "$STAGED" | wc -l | tr -d ' ') file(s)"
+# shellcheck disable=SC2086
+npx --no-install prettier --check $STAGED
