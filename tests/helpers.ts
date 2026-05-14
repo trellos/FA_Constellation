@@ -121,13 +121,16 @@ export async function tapPlay(page: Page): Promise<void> {
       // Fallback: dispatch PointerEvents directly on the canvas so Phaser's
       // input plugin receives them even when OS-level mouse routing is
       // unreliable (headless Linux CI runners).
-      await page.evaluate(({ cx, cy }: { cx: number; cy: number }) => {
-        const canvas = document.querySelector('canvas');
-        if (!canvas) return;
-        const opts = { bubbles: true, cancelable: true, clientX: cx, clientY: cy, pointerId: 1 };
-        canvas.dispatchEvent(new PointerEvent('pointerdown', opts));
-        canvas.dispatchEvent(new PointerEvent('pointerup', opts));
-      }, { cx: playClient.x, cy: playClient.y });
+      await page.evaluate(
+        ({ cx, cy }: { cx: number; cy: number }) => {
+          const canvas = document.querySelector('canvas');
+          if (!canvas) return;
+          const opts = { bubbles: true, cancelable: true, clientX: cx, clientY: cy, pointerId: 1 };
+          canvas.dispatchEvent(new PointerEvent('pointerdown', opts));
+          canvas.dispatchEvent(new PointerEvent('pointerup', opts));
+        },
+        { cx: playClient.x, cy: playClient.y },
+      );
     }
     // Give Phaser ~10 frames to process the input and advance phase.
     await page.waitForTimeout(200);
