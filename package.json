@@ -17,6 +17,7 @@
     "gen-frames": "node tools/extract-frames.mjs",
     "gen-outlines": "node tools/generate-outlines.mjs",
     "gen-finger": "node tools/generate-finger.mjs",
+    "gen-preview": "node tools/generate-preview.mjs",
     "gen-assets": "npm run gen-finger && npm run gen-outlines",
     "test:e2e": "playwright test --project=chromium",
     "test:e2e:headed": "playwright test --project=chromium --headed",
