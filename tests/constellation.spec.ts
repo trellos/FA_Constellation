@@ -83,6 +83,67 @@ test.describe('Constellation activity', () => {
     expect(s.phase).toBe('Tracing');
   });
 
+  test('pressing in empty space (not on the anchor) does NOT start a drag', async ({ page }) => {
+    await tapPlay(page);
+    await expect.poll(async () => (await readState(page)).phase).toBe('Tracing');
+    const points = await readPoints(page);
+    // Anchor "away" deterministically in the canvas quadrant diagonally
+    // opposite the anchor (points[0]). Guarantees the press is on-canvas
+    // AND far enough from the anchor for the gate to reject, regardless of
+    // which random constellation was selected.
+    const game = await page.evaluate(() => {
+      const w = window as unknown as { __game: { scale: { width: number; height: number } } };
+      return { w: w.__game.scale.width, h: w.__game.scale.height };
+    });
+    const away = {
+      x: points[0]!.x < game.w / 2 ? game.w - 80 : 80,
+      y: points[0]!.y < game.h / 2 ? game.h - 80 : 80,
+    };
+    const a = await gameToClient(page, away);
+    const t = await gameToClient(page, points[1]!);
+    await page.mouse.move(a.x, a.y);
+    await page.mouse.down();
+    // Drag toward the target — the gate should have refused the press, so
+    // even reaching the target shouldn't advance.
+    await page.mouse.move(t.x, t.y);
+    await page.mouse.up();
+    await page.waitForTimeout(200);
+    const s = await readState(page);
+    expect(s.currentIndex).toBe(0);
+    expect(s.phase).toBe('Tracing');
+  });
+
+  test('one continuous drag from the anchor sweeps through multiple stars', async ({ page }) => {
+    await tapPlay(page);
+    await expect.poll(async () => (await readState(page)).phase).toBe('Tracing');
+    const points = await readPoints(page);
+    expect(points.length).toBeGreaterThanOrEqual(4);
+
+    // Single press at the anchor, then move through 3 stars without lifting.
+    const a = await gameToClient(page, points[0]!);
+    await page.mouse.move(a.x, a.y);
+    await page.mouse.down();
+    for (let i = 1; i <= 3; i++) {
+      // Step in finer increments so Phaser's pointermove + per-frame update
+      // both get a chance to fire each snap.
+      const from = points[i - 1]!;
+      const to = points[i]!;
+      for (let step = 1; step <= 12; step++) {
+        const t = step / 12;
+        const p = await gameToClient(page, {
+          x: from.x + (to.x - from.x) * t,
+          y: from.y + (to.y - from.y) * t,
+        });
+        await page.mouse.move(p.x, p.y);
+        await page.waitForTimeout(15);
+      }
+    }
+    await page.mouse.up();
+    await page.waitForTimeout(200);
+    const s = await readState(page);
+    expect(s.currentIndex).toBeGreaterThanOrEqual(3);
+  });
+
   test('releasing mid-drag without reaching target keeps the current segment', async ({ page }) => {
     await tapPlay(page);
     await expect.poll(async () => (await readState(page)).phase).toBe('Tracing');

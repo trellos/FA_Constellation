@@ -63,6 +63,11 @@ const RELEASE_SNAP_DISTANCE = TARGET_RADIUS * 4.23; // 110 game-px at TARGET_RAD
 // A drag must travel at least this far from pointer-down before any snap
 // counts. Prevents tap-on-target from advancing without dragging the line.
 const MIN_DRAG_DISTANCE = TARGET_RADIUS * 1.2;
+// Pointer-down has to land within this distance of the current anchor (the
+// last completed star, i.e. the end of the line) to start a drag. Presses
+// anywhere else on the canvas are ignored — you can't begin a new segment
+// from the middle of nowhere.
+const ANCHOR_GRAB_RADIUS = TARGET_RADIUS * 3.08; // same generosity as SNAP_DISTANCE
 const LINE_WIDTH = 6;
 const OUTLINE_FILL = 0.78; // fraction of the smaller screen dimension the outline is fitted to
 const REVEAL_ZOOM = 0.86;
@@ -198,7 +203,11 @@ export class ConstellationDisplay extends Phaser.Scene {
     const d = Phaser.Math.Distance.Between(p.x, p.y, target.x, target.y);
     if (this.hasDragged && d <= SNAP_DISTANCE) {
       this.advanceSegment();
-      this.endDrag();
+      // Keep the drag alive so the user can sweep straight through to the
+      // next star without lifting. The active line will re-anchor to the
+      // newly-completed star on the next event/frame.
+      if (this.phase === Phase.Tracing) this.drawActiveLine(p.x, p.y);
+      this.lastPointer = { x: p.x, y: p.y };
       return;
     }
     this.drawActiveLine(p.x, p.y);
@@ -337,10 +346,16 @@ export class ConstellationDisplay extends Phaser.Scene {
   private onPointerDown(pointer: Phaser.Input.Pointer): void {
     if (this.phase !== Phase.Tracing) return;
     if (!this.points[this.currentIndex + 1]) return;
-    // Any pointer-down during Tracing begins the drag. The line always
-    // anchors at the current node, so the user can start dragging from
-    // anywhere on the screen — the activity remains forgiving. Snap is
-    // gated on hasDragged so a plain tap on the target doesn't advance.
+    const anchor = this.points[this.currentIndex];
+    if (!anchor) return;
+    // Press must originate at the end of the line. Anywhere else and we
+    // ignore the down event — the user can't start a new segment from
+    // the middle of nowhere.
+    if (
+      Phaser.Math.Distance.Between(pointer.x, pointer.y, anchor.x, anchor.y) > ANCHOR_GRAB_RADIUS
+    ) {
+      return;
+    }
     this.dragging = true;
     this.lastPointer = { x: pointer.x, y: pointer.y };
     this.dragStart = { x: pointer.x, y: pointer.y };
@@ -365,7 +380,9 @@ export class ConstellationDisplay extends Phaser.Scene {
 
     if (this.hasDragged && sweptDist <= SNAP_DISTANCE) {
       this.advanceSegment();
-      this.endDrag();
+      // Continue the drag — re-anchor and keep drawing so a single sweep can
+      // pass through several stars in one motion.
+      if (this.phase === Phase.Tracing) this.drawActiveLine(pointer.x, pointer.y);
       return;
     }
     this.drawActiveLine(pointer.x, pointer.y);

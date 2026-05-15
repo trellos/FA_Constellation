@@ -341,7 +341,12 @@ export function makeButton(
   txt.setOrigin(0.5);
   c.add([gfx, txt]);
   c.setSize(w, h);
-  c.setInteractive(new Phaser.Geom.Rectangle(-w / 2, -h / 2, w, h), Phaser.Geom.Rectangle.Contains);
+  // Phaser's hit-test adds the GameObject's displayOrigin to the local
+  // pointer coords before testing against the hit-area rect. For a sized
+  // Container that's (w/2, h/2), so the rect has to live at (0, 0, w, h)
+  // — not (-w/2, -h/2, w, h) — or the hit area silently snaps to the
+  // upper-left quadrant of the visible button.
+  c.setInteractive(new Phaser.Geom.Rectangle(0, 0, w, h), Phaser.Geom.Rectangle.Contains);
 
   let armed = false;
   let fired = false;
