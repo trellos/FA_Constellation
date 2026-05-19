@@ -1,5 +1,10 @@
 export type NormalizedPoint = readonly [number, number];
 
+export interface ScreenPoint {
+  readonly x: number;
+  readonly y: number;
+}
+
 export interface ConstellationData {
   /** Display name shown on the end screen. */
   readonly name: string;
@@ -63,4 +68,8 @@ export function validateConstellationData(raw: unknown, source: string): Constel
     points.push([u, v]);
   }
   return { name: obj.name, points };
+}
+
+export function pad2(n: number): string {
+  return n < 10 ? `0${n}` : `${n}`;
 }

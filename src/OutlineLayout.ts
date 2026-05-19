@@ -1,4 +1,6 @@
-import type { ConstellationData } from './types';
+import type { ConstellationData, ScreenPoint } from './types';
+
+export type { ScreenPoint };
 
 export interface OutlineRect {
   readonly left: number;
@@ -6,11 +8,6 @@ export interface OutlineRect {
   readonly width: number;
   readonly height: number;
   readonly scale: number;
-}
-
-export interface ScreenPoint {
-  readonly x: number;
-  readonly y: number;
 }
 
 export interface OutlineLayout {

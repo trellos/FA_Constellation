@@ -1,7 +1,7 @@
 import Phaser from 'phaser';
-import type { ConstellationData } from './types';
+import type { ConstellationData, ScreenPoint } from './types';
 import { computeOutlineLayout } from './OutlineLayout';
-import { IntroModal } from './ui/IntroModal';
+import { IntroModal, makeButton } from './ui/IntroModal';
 import { EndScreen } from './ui/EndScreen';
 import { FingerHint } from './ui/FingerHint';
 
@@ -40,11 +40,6 @@ enum Phase {
   End = 'End',
 }
 
-interface ScreenPoint {
-  x: number;
-  y: number;
-}
-
 /**
  * Visual tuning. The snap distances are derived from TARGET_RADIUS so that
  * changing the ring size automatically retunes the snap zone; the halo
@@ -71,6 +66,9 @@ const ANCHOR_GRAB_RADIUS = TARGET_RADIUS * 3.08; // same generosity as SNAP_DIST
 const LINE_WIDTH = 6;
 const OUTLINE_FILL = 0.78; // fraction of the smaller screen dimension the outline is fitted to
 const REVEAL_ZOOM = 0.86;
+const REVEAL_TWEEN_MS = 700; // zoom + outline-fade duration
+const REVEAL_DELAY_MS = 100; // outline-fade delay after zoom starts
+const REVEAL_END_BUFFER_MS = 100; // breathing room after anim completes before showing EndScreen
 const HINT_DELAY_MS = 700;
 
 /**
@@ -95,9 +93,11 @@ export class ConstellationDisplay extends Phaser.Scene {
   private points: ScreenPoint[] = [];
   private currentIndex = 0; // segment we are currently drawing (from points[i] to points[i+1])
   private dragging = false;
-  private lastPointer: ScreenPoint | null = null;
-  private dragStart: ScreenPoint | null = null;
+  private lastPointer: { x: number; y: number } | null = null;
+  private dragStart: { x: number; y: number } | null = null;
   private hasDragged = false;
+  // Pre-allocated buffer so setLastPointer never allocates during a drag.
+  private readonly _lastPtrBuf: { x: number; y: number } = { x: 0, y: 0 };
 
   // visuals
   private nodes: Phaser.GameObjects.Container[] = [];
@@ -138,14 +138,18 @@ export class ConstellationDisplay extends Phaser.Scene {
 
   create(): void {
     if (this.loadFailed) {
-      // Render a minimal error state instead of crashing in layout.
+      const cx = this.scale.width / 2;
+      const cy = this.scale.height / 2;
       this.add
-        .text(this.scale.width / 2, this.scale.height / 2, 'Failed to load constellation', {
+        .text(cx, cy - 60, 'Failed to load constellation', {
           fontFamily: 'Inter, "Segoe UI", system-ui, sans-serif',
           fontSize: '32px',
           color: '#FFCCCC',
         })
         .setOrigin(0.5);
+      makeButton(this, 'Try Again', 220, 72, 0x2a8ae0, 0x1a60b0, () =>
+        this.onRestart(),
+      ).setPosition(cx, cy + 40);
       return;
     }
 
@@ -207,7 +211,7 @@ export class ConstellationDisplay extends Phaser.Scene {
       // next star without lifting. The active line will re-anchor to the
       // newly-completed star on the next event/frame.
       if (this.phase === Phase.Tracing) this.drawActiveLine(p.x, p.y);
-      this.lastPointer = { x: p.x, y: p.y };
+      this.setLastPointer(p.x, p.y);
       return;
     }
     this.drawActiveLine(p.x, p.y);
@@ -287,7 +291,7 @@ export class ConstellationDisplay extends Phaser.Scene {
 
     this.currentIndex += 1;
     this.spawnNode(this.currentIndex, /*filled*/ true);
-    this.redrawCompletedLines();
+    this.appendCompletedSegment();
     this.clearTarget();
 
     if (this.currentIndex >= this.points.length - 1) {
@@ -308,18 +312,18 @@ export class ConstellationDisplay extends Phaser.Scene {
     this.tweens.add({
       targets: this.cameras.main,
       zoom: REVEAL_ZOOM,
-      duration: 700,
+      duration: REVEAL_TWEEN_MS,
       ease: 'sine.inOut',
     });
     this.tweens.add({
       targets: this.outlineImage,
       alpha: 1,
-      duration: 700,
+      duration: REVEAL_TWEEN_MS,
       ease: 'sine.out',
-      delay: 100,
+      delay: REVEAL_DELAY_MS,
     });
 
-    this.time.delayedCall(900, () => {
+    this.time.delayedCall(REVEAL_TWEEN_MS + REVEAL_DELAY_MS + REVEAL_END_BUFFER_MS, () => {
       this.phase = Phase.End;
       new EndScreen(this, this.constellationData.name, () => this.onRestart());
     });
@@ -343,6 +347,12 @@ export class ConstellationDisplay extends Phaser.Scene {
     this.hasDragged = false;
   }
 
+  private setLastPointer(x: number, y: number): void {
+    this._lastPtrBuf.x = x;
+    this._lastPtrBuf.y = y;
+    this.lastPointer = this._lastPtrBuf;
+  }
+
   private onPointerDown(pointer: Phaser.Input.Pointer): void {
     if (this.phase !== Phase.Tracing) return;
     if (!this.points[this.currentIndex + 1]) return;
@@ -357,7 +367,7 @@ export class ConstellationDisplay extends Phaser.Scene {
       return;
     }
     this.dragging = true;
-    this.lastPointer = { x: pointer.x, y: pointer.y };
+    this.setLastPointer(pointer.x, pointer.y);
     this.dragStart = { x: pointer.x, y: pointer.y };
     this.hasDragged = false;
     this.fingerHint?.stop();
@@ -375,7 +385,7 @@ export class ConstellationDisplay extends Phaser.Scene {
     // snap zone between two consecutive pointermove events.
     const prev = this.lastPointer ?? { x: pointer.x, y: pointer.y };
     const sweptDist = distancePointToSegment(target, prev, pointer);
-    this.lastPointer = { x: pointer.x, y: pointer.y };
+    this.setLastPointer(pointer.x, pointer.y);
     this.updateDragProgress(pointer.x, pointer.y);
 
     if (this.hasDragged && sweptDist <= SNAP_DISTANCE) {
@@ -525,6 +535,22 @@ export class ConstellationDisplay extends Phaser.Scene {
     this.activeLine.strokePath();
   }
 
+  // Incremental: appends only the segment that was just completed. Called by
+  // advanceSegment() to avoid the O(n²) total redraws of a full clear+repaint.
+  private appendCompletedSegment(): void {
+    if (!this.completedLines) return;
+    const a = this.points[this.currentIndex - 1];
+    const b = this.points[this.currentIndex];
+    if (!a || !b) return;
+    this.completedLines.lineStyle(LINE_WIDTH, 0xffffff, 1);
+    this.completedLines.beginPath();
+    this.completedLines.moveTo(a.x, a.y);
+    this.completedLines.lineTo(b.x, b.y);
+    this.completedLines.strokePath();
+    this.activeLine?.clear();
+  }
+
+  // Full repaint used on resize, when screen coordinates of all points change.
   private redrawCompletedLines(): void {
     if (!this.completedLines) return;
     this.completedLines.clear();

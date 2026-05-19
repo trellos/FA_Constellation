@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 import type { DebugPickerData } from '../ConstellationDisplay';
+import { pad2 } from '../types';
 
 const PANEL_FILL = 0x1b1a4a;
 const PANEL_STROKE = 0x7e6fff;
@@ -41,9 +42,9 @@ export class IntroModal {
     if (this.debug) this.buildDebugPanel(this.debug);
     this.relayout();
 
-    scene.scale.on(Phaser.Scale.Events.RESIZE, this.relayout, this);
+    scene.scale.on(Phaser.Scale.Events.RESIZE, this.relayout);
     scene.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
-      scene.scale.off(Phaser.Scale.Events.RESIZE, this.relayout, this);
+      scene.scale.off(Phaser.Scale.Events.RESIZE, this.relayout);
     });
   }
 
@@ -180,10 +181,6 @@ export class IntroModal {
   }
 }
 
-function pad2(n: number): string {
-  return n < 10 ? `0${n}` : `${n}`;
-}
-
 /** Draws a "dashed rounded rectangle" as a series of short stroked arcs/lines. */
 function drawDashedRoundedRect(
   g: Phaser.GameObjects.Graphics,
@@ -288,7 +285,7 @@ function drawIntroIcon(g: Phaser.GameObjects.Graphics, cx: number, cy: number): 
   g.strokeCircle(cx + 70, cy - 10, 11);
 }
 
-export function drawButton(
+function drawButton(
   g: Phaser.GameObjects.Graphics,
   w: number,
   h: number,

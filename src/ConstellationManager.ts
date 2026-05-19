@@ -1,6 +1,6 @@
 import Phaser from 'phaser';
 import type { ConstellationData, LoadedConstellation } from './types';
-import { validateConstellationData } from './types';
+import { validateConstellationData, pad2 } from './types';
 import { ConstellationDisplay, type ConstellationDisplayInitData } from './ConstellationDisplay';
 
 const ASSETS_BASE = 'assets';
@@ -17,7 +17,7 @@ const ASSETS_BASE = 'assets';
  */
 export class ConstellationManager {
   private readonly game: Phaser.Game;
-  private available: number[] = [];
+  private available: Set<number> = new Set();
   private names: Map<number, string> = new Map();
   private readonly debugMode: boolean;
   private currentSceneKey: string | null = null;
@@ -26,9 +26,7 @@ export class ConstellationManager {
 
   constructor(game: Phaser.Game) {
     this.game = game;
-    this.debugMode =
-      typeof window !== 'undefined' &&
-      new URLSearchParams(window.location.search).get('debug') === '1';
+    this.debugMode = new URLSearchParams(window.location.search).get('debug') === '1';
   }
 
   /**
@@ -55,7 +53,15 @@ export class ConstellationManager {
         }),
       );
       for (const r of batch) {
-        if (!r.ok) break outer;
+        if (!r.ok) {
+          if (found.length > 0) {
+            console.warn(
+              `[constellation] gap at constellation_${pad2(r.i)}: discovery stopped. ` +
+                `Indices ${r.i}+ will not be available.`,
+            );
+          }
+          break outer;
+        }
         found.push(r.i);
       }
     }
@@ -64,28 +70,29 @@ export class ConstellationManager {
 
   /** Discover and launch the first random constellation. Throws if none. */
   async start(): Promise<void> {
-    this.available = await ConstellationManager.discoverAvailable();
-    if (this.available.length === 0) {
+    this.available = new Set(await ConstellationManager.discoverAvailable());
+    if (this.available.size === 0) {
       throw new Error(
         'No constellation_NN.{json,png} pairs found in /assets. Run `npm run gen-assets`.',
       );
     }
     if (this.debugMode) {
       // Pre-fetch names so the debug picker can label each option.
-      await Promise.all(this.available.map((id) => this.cacheName(id)));
+      await Promise.all([...this.available].map((id) => this.cacheName(id)));
     }
     await this.showRandom();
   }
 
   /** Pick a random constellation and (re)start the display scene with it. */
   async showRandom(): Promise<void> {
-    const id = this.available[Math.floor(Math.random() * this.available.length)]!;
+    const ids = [...this.available];
+    const id = ids[Math.floor(Math.random() * ids.length)]!;
     await this.show(id);
   }
 
   /** Load and mount the display scene for a specific constellation id. */
   async show(id: number): Promise<void> {
-    if (!this.available.includes(id)) {
+    if (!this.available.has(id)) {
       throw new Error(`constellation id ${id} is not in the discovered set`);
     }
     const loaded = await this.load(id);
@@ -117,7 +124,7 @@ export class ConstellationManager {
       },
       debug: this.debugMode
         ? {
-            ids: [...this.available],
+            ids: [...this.available].sort((a, b) => a - b),
             names: Object.fromEntries(this.names),
             current: id,
             onPick: (chosenId: number) => {
@@ -168,10 +175,6 @@ export class ConstellationManager {
     const textureKey = `constellation_${idStr}`;
     return { id, data, textureKey, pngUrl };
   }
-}
-
-function pad2(n: number): string {
-  return n < 10 ? `0${n}` : `${n}`;
 }
 
 function range(start: number, end: number): number[] {

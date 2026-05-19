@@ -46,9 +46,9 @@ export class EndScreen {
       ease: 'sine.out',
     });
 
-    scene.scale.on(Phaser.Scale.Events.RESIZE, this.relayout, this);
+    scene.scale.on(Phaser.Scale.Events.RESIZE, this.relayout);
     scene.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
-      scene.scale.off(Phaser.Scale.Events.RESIZE, this.relayout, this);
+      scene.scale.off(Phaser.Scale.Events.RESIZE, this.relayout);
       // Don't leave a tween mutating a destroyed Container — same family of
       // bug as the FingerHint TweenChain crash we already fixed.
       scene.tweens.killTweensOf(this.container);
